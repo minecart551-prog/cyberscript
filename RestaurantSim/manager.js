@@ -1,28 +1,45 @@
 // gui ids
 
-var ID_LABEL_SPAWN = 1;
-var ID_LABEL_COUNTER = 2;
-var ID_FIELD_SPAWN = 3;
-var ID_FIELD_COUNTER = 4;
-
 var ID_JOB_LABEL = 10;
 var ID_START_JOB_BUTTON = 11;
 var ID_STOP_JOB_BUTTON = 12;
 
-// menu slots
+// section config
 
-var slotPositions = [
-    {x: 10, y: 20},
-    {x: 40, y: 20},
-    {x: 70, y: 20},
-    {x: 100, y: 20},
-    {x: 130, y: 20}
+var SECTIONS = [
+    {
+        name: "Drinks",
+        startX: -20,
+        startY: -60,
+        rows: 6,
+        columns: 4,
+        slotSpacingX: 20,
+        slotSpacingY: 20
+    },
+    {
+        name: "Food",
+        startX: 100,
+        startY: -60,
+        rows: 6,
+        columns: 4,
+        slotSpacingX: 20,
+        slotSpacingY: 20
+    }
 ];
 
+// runtime
+
 var mySlots = [];
+var slotPositions = [];
+var selectedSlots = [];
+var slotHighlights = {};
+var highlightedAdminSlot = null;
+var adminHighlightLines = [];
 var guiRef = null;
 var lastNpc = null;
 var storedSlotItems = [];
+var isAdminGui = false;
+var nextLineId = 1000;
 
 // interact
 
@@ -32,45 +49,46 @@ function interact(event) {
     lastNpc = event.npc;
 
     var held = player.getMainhandItem();
-
     if (held && !held.isEmpty() && held.getName() === "minecraft:bedrock") {
         openAdminGui(player, api);
     } else {
-        openJobGui(player, api);
+        openPlayerGui(player, api);
     }
+}
+
+// build slot positions
+
+function buildSlotPositions() {
+    slotPositions = [];
+    SECTIONS.forEach(function(section) {
+        for (var r = 0; r < section.rows; r++) {
+            for (var c = 0; c < section.columns; c++) {
+                slotPositions.push({
+                    x: section.startX + c * section.slotSpacingX,
+                    y: section.startY + r * section.slotSpacingY
+                });
+            }
+        }
+    });
 }
 
 // admin gui
 
 function openAdminGui(player, api) {
+    isAdminGui = true;
+    highlightedAdminSlot = null;
+    adminHighlightLines = [];
+    buildSlotPositions();
+
     var npcData = lastNpc.getStoreddata();
-
-    var spawnText = npcData.has("CustomerSpawn") ? npcData.get("CustomerSpawn") : "";
-    var counterText = npcData.has("CounterPos") ? npcData.get("CounterPos") : "";
-
-    var gui = api.createCustomGui(176, 166, 0, true, player);
-
-    gui.addLabel(ID_LABEL_SPAWN, "Customer Spawn (x y z)", 10, 10, 156, 12);
-    gui.addLabel(ID_LABEL_COUNTER, "Counter Position (x y z)", 10, 50, 156, 12);
-
-    gui.addTextField(ID_FIELD_SPAWN, 10, 25, 156, 18).setText(spawnText);
-    gui.addTextField(ID_FIELD_COUNTER, 10, 65, 156, 18).setText(counterText);
-
-    player.showCustomGui(gui);
-}
-
-// job gui
-
-function openJobGui(player, api) {
-    var npcData = lastNpc.getStoreddata();
-
     storedSlotItems = npcData.has("MenuItems")
         ? JSON.parse(npcData.get("MenuItems"))
-        : [null, null, null, null, null];
+        : [];
 
     guiRef = api.createCustomGui(176, 166, 0, true, player);
 
-    guiRef.addLabel(ID_JOB_LABEL, "Restaurant Menu", 10, 5, 156, 12);
+    var label = guiRef.addLabel(ID_JOB_LABEL, "Admin Menu Setup", 11, -110, 156, 12);
+    label.setColor(0xFFFFFF);
 
     mySlots = [];
 
@@ -85,96 +103,169 @@ function openJobGui(player, api) {
                 ));
             } catch (e) {}
         }
-
         mySlots.push(slot);
     }
 
-    guiRef.addButton(ID_START_JOB_BUTTON, "Start Job", 10, 50, 70, 20);
-    guiRef.addButton(ID_STOP_JOB_BUTTON, "Stop Job", 90, 50, 70, 20);
-
-    guiRef.showPlayerInventory(10, 80, false);
+    guiRef.showPlayerInventory(10, 90, false);
     player.showCustomGui(guiRef);
 }
 
-// slot click logic
+// player gui
+
+function openPlayerGui(player, api) {
+    isAdminGui = false;
+    buildSlotPositions();
+
+    var npcData = lastNpc.getStoreddata();
+    storedSlotItems = npcData.has("MenuItems")
+        ? JSON.parse(npcData.get("MenuItems"))
+        : [];
+
+    selectedSlots = player.getStoreddata().has("SelectedMenuSlots")
+        ? JSON.parse(player.getStoreddata().get("SelectedMenuSlots"))
+        : [];
+
+    renderPlayerGui(player, api);
+}
+
+function renderPlayerGui(player, api) {
+    guiRef = api.createCustomGui(176, 166, 0, true, player);
+
+    var label = guiRef.addLabel(ID_JOB_LABEL, "Restaurant Menu", 10, -110, 156, 12);
+    label.setColor(0xFFFFFF);
+
+    mySlots = [];
+    slotHighlights = {};
+    nextLineId = 1000;
+
+    for (var i = 0; i < slotPositions.length; i++) {
+        var pos = slotPositions[i];
+        var slot = guiRef.addItemSlot(pos.x, pos.y);
+
+        if (storedSlotItems[i]) {
+            try {
+                slot.setStack(player.world.createItemFromNbt(
+                    api.stringToNbt(storedSlotItems[i])
+                ));
+            } catch (e) {}
+        }
+        mySlots.push(slot);
+    }
+
+    selectedSlots.forEach(function(idx) {
+        if (idx >= 0 && idx < mySlots.length) {
+            drawHighlight(idx);
+        }
+    });
+
+    guiRef.addButton(ID_START_JOB_BUTTON, "Start Job", 10, 90, 70, 20);
+    guiRef.addButton(ID_STOP_JOB_BUTTON, "Stop Job", 90, 90, 70, 20);
+
+    player.showCustomGui(guiRef);
+}
+
+// slot click
 
 function customGuiSlotClicked(event) {
-    if (!mySlots || mySlots.length === 0) return;
-
     var clickedSlot = event.slot;
     var stack = event.stack;
     var player = event.player;
+    var index = mySlots.indexOf(clickedSlot);
 
-    var slotIndex = mySlots.indexOf(clickedSlot);
+    if (isAdminGui) {
 
-    // clicking a menu slot removes item
-    if (slotIndex !== -1) {
-        var slotStack = clickedSlot.getStack();
-        if (slotStack && !slotStack.isEmpty()) {
-            clickedSlot.setStack(player.world.createItem("minecraft:air", 1));
-            guiRef.update();
-        }
-        return;
-    }
+        // selecting admin slot
+        if (index !== -1) {
+            highlightedAdminSlot = clickedSlot;
+            clearAdminHighlight();
 
-    // clicking player inventory copies item
-    if (!stack || stack.isEmpty()) return;
-
-    for (var i = 0; i < mySlots.length; i++) {
-        var slot = mySlots[i];
-        var slotStack = slot.getStack();
-
-        if (!slotStack || slotStack.isEmpty()) {
-            var copy = player.world.createItemFromNbt(stack.getItemNbt());
-            copy.setStackSize(1);
-            slot.setStack(copy);
+            var pos = slotPositions[index];
+            drawAdminHighlight(pos.x, pos.y);
             guiRef.update();
             return;
         }
-    }
-}
 
-// buttons
+        if (!highlightedAdminSlot) return;
 
-function customGuiButton(event) {
-    var player = event.player;
+        // empty cursor clears slot
+        if (!stack || stack.isEmpty()) {
+            highlightedAdminSlot.setStack(
+                player.world.createItem("minecraft:air", 1)
+            );
+            guiRef.update();
+            return;
+        }
 
-    if (event.buttonId === ID_START_JOB_BUTTON) {
-        player.getStoreddata().put("RestaurantJobActive", "true");
-        player.message("Job started");
-    }
-
-    if (event.buttonId === ID_STOP_JOB_BUTTON) {
-        player.getStoreddata().put("RestaurantJobActive", "false");
-        player.message("Job stopped");
-    }
-}
-
-// save data
-
-function customGuiClosed(event) {
-    if (!lastNpc) return;
-
-    var npcData = lastNpc.getStoreddata();
-    var gui = event.gui;
-
-    var spawnField = gui.getComponent(ID_FIELD_SPAWN);
-    var counterField = gui.getComponent(ID_FIELD_COUNTER);
-
-    if (spawnField && counterField) {
-        npcData.put("CustomerSpawn", spawnField.getText());
-        npcData.put("CounterPos", counterField.getText());
+        // item on cursor copies into slot
+        var copy = player.world.createItemFromNbt(stack.getItemNbt());
+        copy.setStackSize(stack.getStackSize());
+        highlightedAdminSlot.setStack(copy);
+        guiRef.update();
         return;
     }
 
-    if (mySlots && mySlots.length > 0) {
-        storedSlotItems = mySlots.map(function(slot) {
-            var stack = slot.getStack();
-            return stack && !stack.isEmpty()
-                ? stack.getItemNbt().toJsonString()
-                : null;
-        });
+    if (index === -1) return;
+    toggleHighlight(index, player, event.API);
+}
 
-        npcData.put("MenuItems", JSON.stringify(storedSlotItems));
-    }
+// admin highlight
+
+function drawAdminHighlight(x, y) {
+    var w = 18, h = 18;
+    adminHighlightLines = [
+        guiRef.addColoredLine(1, x, y, x + w, y, 0xADD8E6, 2),
+        guiRef.addColoredLine(2, x, y + h, x + w, y + h, 0xADD8E6, 2),
+        guiRef.addColoredLine(3, x, y, x, y + h, 0xADD8E6, 2),
+        guiRef.addColoredLine(4, x + w, y, x + w, y + h, 0xADD8E6, 2)
+    ];
+}
+
+function clearAdminHighlight() {
+    adminHighlightLines.forEach(function(id) {
+        try { guiRef.removeComponent(id); } catch (e) {}
+    });
+    adminHighlightLines = [];
+}
+
+// player highlight
+
+function toggleHighlight(index, player, api) {
+    var pos = selectedSlots.indexOf(index);
+    if (pos !== -1) selectedSlots.splice(pos, 1);
+    else selectedSlots.push(index);
+
+    player.getStoreddata().put(
+        "SelectedMenuSlots",
+        JSON.stringify(selectedSlots)
+    );
+
+    renderPlayerGui(player, api);
+}
+
+function drawHighlight(index) {
+    var pos = slotPositions[index];
+    var x = pos.x, y = pos.y, w = 18, h = 18;
+
+    slotHighlights[index] = [
+        guiRef.addColoredLine(nextLineId++, x, y, x + w, y, 0xADD8E6, 2),
+        guiRef.addColoredLine(nextLineId++, x, y + h, x + w, y + h, 0xADD8E6, 2),
+        guiRef.addColoredLine(nextLineId++, x, y, x, y + h, 0xADD8E6, 2),
+        guiRef.addColoredLine(nextLineId++, x + w, y, x + w, y + h, 0xADD8E6, 2)
+    ];
+}
+
+// save admin data
+
+function customGuiClosed(event) {
+    if (!isAdminGui || !lastNpc) return;
+
+    var npcData = lastNpc.getStoreddata();
+    storedSlotItems = mySlots.map(function(slot) {
+        var stack = slot.getStack();
+        return stack && !stack.isEmpty()
+            ? stack.getItemNbt().toJsonString()
+            : null;
+    });
+
+    npcData.put("MenuItems", JSON.stringify(storedSlotItems));
 }
