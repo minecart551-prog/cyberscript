@@ -1,0 +1,107 @@
+var RANGE = 100;
+var lastOwnerAttackTime = 0;
+var currentTargetId = null;
+
+function hasFunc(o, name){
+    try { return o && typeof o[name] === "function"; } catch(e){ return false; }
+}
+function getUUIDSafe(e){
+    try { return e ? e.getUUID() : null; } catch(e){ return null; }
+}
+function isAliveEntity(e){
+    try { return e && hasFunc(e, "getHealth") && e.getHealth() > 0; } catch(e){ return false; }
+}
+
+function init(event){
+    var npc = event.npc;
+    if (npc.role == null) return;
+    var owner = npc.role.getFollowing();
+    if (owner == null){
+        npc.storeddata.put("OwnerName", 0);
+        npc.storeddata.put("OwnerUUID", 0);
+    }else{
+        npc.storeddata.put("OwnerName", owner.getName());
+        npc.storeddata.put("OwnerUUID", owner.getUUID());
+    }
+}
+
+function tick(event){
+    var npc = event.npc;
+    var world = npc.getWorld();
+
+    if (npc.role == null) return;
+    var owner = npc.role.getFollowing();
+    if (owner == null){
+        npc.storeddata.put("OwnerName", 0);
+        npc.storeddata.put("OwnerUUID", 0);
+        npc.setAttackTarget(null);
+        currentTargetId = null;
+        return;
+    }
+
+    if (npc.storeddata.get("OwnerUUID") !== owner.getUUID()){
+        npc.storeddata.put("OwnerName", owner.getName());
+        npc.storeddata.put("OwnerUUID", owner.getUUID());
+    }
+
+    var curTarget = npc.getAttackTarget();
+    if (curTarget && !isAliveEntity(curTarget)){
+        npc.setAttackTarget(null);
+        currentTargetId = null;
+        curTarget = null;
+    }
+
+    // 1) Owner attacked something -> assist
+    if (!curTarget && hasFunc(owner, "getLastAttackedTime") && hasFunc(owner, "getLastAttacked")){
+        var oat = owner.getLastAttackedTime();
+        if (oat > lastOwnerAttackTime){
+            var tgt = owner.getLastAttacked();
+            if (tgt && isAliveEntity(tgt)){
+                npc.setAttackTarget(tgt);
+                currentTargetId = getUUIDSafe(tgt);
+                curTarget = tgt;
+            }
+            lastOwnerAttackTime = oat;
+        }
+    }
+
+    // 2) Scan nearby entities to see if any attacked the owner recently
+    if (!curTarget){
+        var nearby = world.getNearbyEntities(owner.getPos(), RANGE, -1);
+        if (nearby && nearby.length){
+            for (var i=0; i<nearby.length; i++){
+                var e = nearby[i];
+                if (!e) continue;
+                var eId = getUUIDSafe(e);
+                if (!eId || eId === owner.getUUID() || eId === npc.getUUID()) continue;
+                if (!isAliveEntity(e)) continue;
+
+                // Check if this entity last attacked the owner
+                if (hasFunc(e, "getLastAttacked") && hasFunc(e, "getLastAttackedTime")){
+                    try{
+                        var lastTgt = e.getLastAttacked();
+                        if (lastTgt && getUUIDSafe(lastTgt) === owner.getUUID()){
+                            npc.setAttackTarget(e);
+                            currentTargetId = eId;
+                            curTarget = e;
+                            break;
+                        }
+                    }catch(ignored){}
+                }
+
+                // Check if entity is an NPC/mob targeting owner
+                if (hasFunc(e, "getAttackTarget")){
+                    try{
+                        var atkTgt = e.getAttackTarget();
+                        if (atkTgt && getUUIDSafe(atkTgt) === owner.getUUID()){
+                            npc.setAttackTarget(e);
+                            currentTargetId = eId;
+                            curTarget = e;
+                            break;
+                        }
+                    }catch(ignored){}
+                }
+            }
+        }
+    }
+}
