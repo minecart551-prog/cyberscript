@@ -40,6 +40,7 @@ var lastNpc = null;
 var storedSlotItems = [];
 var isAdminGui = false;
 var nextLineId = 1000;
+var slotPositionsBuilt = false;
 
 // interact
 
@@ -56,9 +57,11 @@ function interact(event) {
     }
 }
 
-// build slot positions
+// slot positions (build once)
 
 function buildSlotPositions() {
+    if (slotPositionsBuilt) return;
+
     slotPositions = [];
     SECTIONS.forEach(function(section) {
         for (var r = 0; r < section.rows; r++) {
@@ -70,6 +73,26 @@ function buildSlotPositions() {
             }
         }
     });
+
+    slotPositionsBuilt = true;
+}
+
+// npc data helpers
+
+function loadNpcMenuItems(npc) {
+    var data = npc.getStoreddata();
+    return data.has("MenuItems") ? JSON.parse(data.get("MenuItems")) : [];
+}
+
+function saveNpcMenuItems(npc) {
+    var data = npc.getStoreddata();
+    var out = mySlots.map(function(slot) {
+        var stack = slot.getStack();
+        return stack && !stack.isEmpty()
+            ? stack.getItemNbt().toJsonString()
+            : null;
+    });
+    data.put("MenuItems", JSON.stringify(out));
 }
 
 // admin gui
@@ -80,10 +103,7 @@ function openAdminGui(player, api) {
     adminHighlightLines = [];
     buildSlotPositions();
 
-    var npcData = lastNpc.getStoreddata();
-    storedSlotItems = npcData.has("MenuItems")
-        ? JSON.parse(npcData.get("MenuItems"))
-        : [];
+    storedSlotItems = loadNpcMenuItems(lastNpc);
 
     guiRef = api.createCustomGui(176, 166, 0, true, player);
 
@@ -98,11 +118,14 @@ function openAdminGui(player, api) {
 
         if (storedSlotItems[i]) {
             try {
-                slot.setStack(player.world.createItemFromNbt(
-                    api.stringToNbt(storedSlotItems[i])
-                ));
+                slot.setStack(
+                    player.world.createItemFromNbt(
+                        api.stringToNbt(storedSlotItems[i])
+                    )
+                );
             } catch (e) {}
         }
+
         mySlots.push(slot);
     }
 
@@ -116,10 +139,7 @@ function openPlayerGui(player, api) {
     isAdminGui = false;
     buildSlotPositions();
 
-    var npcData = lastNpc.getStoreddata();
-    storedSlotItems = npcData.has("MenuItems")
-        ? JSON.parse(npcData.get("MenuItems"))
-        : [];
+    storedSlotItems = loadNpcMenuItems(lastNpc);
 
     selectedSlots = player.getStoreddata().has("SelectedMenuSlots")
         ? JSON.parse(player.getStoreddata().get("SelectedMenuSlots"))
@@ -144,11 +164,14 @@ function renderPlayerGui(player, api) {
 
         if (storedSlotItems[i]) {
             try {
-                slot.setStack(player.world.createItemFromNbt(
-                    api.stringToNbt(storedSlotItems[i])
-                ));
+                slot.setStack(
+                    player.world.createItemFromNbt(
+                        api.stringToNbt(storedSlotItems[i])
+                    )
+                );
             } catch (e) {}
         }
+
         mySlots.push(slot);
     }
 
@@ -173,8 +196,6 @@ function customGuiSlotClicked(event) {
     var index = mySlots.indexOf(clickedSlot);
 
     if (isAdminGui) {
-
-        // selecting admin slot
         if (index !== -1) {
             highlightedAdminSlot = clickedSlot;
             clearAdminHighlight();
@@ -187,7 +208,6 @@ function customGuiSlotClicked(event) {
 
         if (!highlightedAdminSlot) return;
 
-        // empty cursor clears slot
         if (!stack || stack.isEmpty()) {
             highlightedAdminSlot.setStack(
                 player.world.createItem("minecraft:air", 1)
@@ -196,7 +216,6 @@ function customGuiSlotClicked(event) {
             return;
         }
 
-        // item on cursor copies into slot
         var copy = player.world.createItemFromNbt(stack.getItemNbt());
         copy.setStackSize(stack.getStackSize());
         highlightedAdminSlot.setStack(copy);
@@ -258,14 +277,5 @@ function drawHighlight(index) {
 
 function customGuiClosed(event) {
     if (!isAdminGui || !lastNpc) return;
-
-    var npcData = lastNpc.getStoreddata();
-    storedSlotItems = mySlots.map(function(slot) {
-        var stack = slot.getStack();
-        return stack && !stack.isEmpty()
-            ? stack.getItemNbt().toJsonString()
-            : null;
-    });
-
-    npcData.put("MenuItems", JSON.stringify(storedSlotItems));
+    saveNpcMenuItems(lastNpc);
 }
