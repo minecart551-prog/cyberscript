@@ -5,7 +5,7 @@ var navigationSpeed = 0.4;
 var scanRadius = 16;
 var orderPlaced = false;
 
-var orderedItem = null; // IItemStack the customer chose
+var orderedItems = []; // array of IItemStack (max 3)
 
 function parseCoords(str){
     if(!str) return null;
@@ -73,17 +73,26 @@ function tick(event){
                 orderPlaced = true;
 
                 if(menuItems.length > 0){
-                    var idx = Math.floor(Math.random() * menuItems.length);
-                    var entry = menuItems[idx];
+                    orderedItems = [];
 
-                    var nbt;
-                    if(typeof entry === "string"){
-                        nbt = api.stringToNbt(entry);
-                    }else{
-                        nbt = api.stringToNbt(JSON.stringify(entry));
+                    // random count: 1–3
+                    var orderCount = 1 + Math.floor(Math.random() * 3);
+
+                    for(var i=0; i<orderCount; i++){
+                        var idx = Math.floor(Math.random() * menuItems.length);
+                        var entry = menuItems[idx];
+
+                        var nbt;
+                        if(typeof entry === "string"){
+                            nbt = api.stringToNbt(entry);
+                        }else{
+                            nbt = api.stringToNbt(JSON.stringify(entry));
+                        }
+
+                        var item = world.createItemFromNbt(nbt);
+                        orderedItems.push(item);
                     }
 
-                    orderedItem = world.createItemFromNbt(nbt);
                     npc.say("I've decided what to order.");
                 }else{
                     npc.say("There's nothing on the menu!");
@@ -97,16 +106,22 @@ function interact(event){
     var player = event.player;
     var api = event.API;
 
-    if(!orderedItem){
+    if(orderedItems.length === 0){
         player.message("This customer hasn't ordered yet.");
         return;
     }
 
-    var gui = api.createCustomGui(101, 90, 0, true, player);
+    var gui = api.createCustomGui(102, 120, 0, true, player);
     gui.addLabel(1, "Customer wants:", 10, 10, 150, 12);
 
-    var slot = gui.addItemSlot(35, 30);
-    slot.setStack(orderedItem);
+    // three slots
+    var slotX = 30;
+    for(var i=0; i<3; i++){
+        var slot = gui.addItemSlot(slotX + i*22, 35);
+        if(orderedItems[i]){
+            slot.setStack(orderedItems[i]);
+        }
+    }
 
     player.showCustomGui(gui);
 }
