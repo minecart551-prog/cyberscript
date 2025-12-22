@@ -50,8 +50,27 @@ function buildSlotPositions() {
 }
 
 // load/save npc menu items
-function loadNpcMenuItems(npc) { var data = npc.getStoreddata(); return data.has("MenuItems") ? JSON.parse(data.get("MenuItems")) : []; }
-function saveNpcMenuItems(npc) { var data = npc.getStoreddata(); data.put("MenuItems", JSON.stringify(mySlots.map(function(slot){ var s = slot.getStack(); return s && !s.isEmpty() ? s.getItemNbt().toJsonString() : null; }))); }
+function loadNpcMenuItems(npc) {
+    var data = npc.getStoreddata();
+    return data.has("MenuItems") ? JSON.parse(data.get("MenuItems")) : [];
+}
+
+// simplified: store only item names instead of full NBT
+function saveNpcMenuItems(npc) {
+    var names = mySlots.map(function(slot){
+        var stack = slot.getStack();
+        if(stack && !stack.isEmpty()){
+            var nbt = stack.getItemNbt();
+            if(nbt && nbt.tag && nbt.tag.display && nbt.tag.display.Name){
+                return nbt.tag.display.Name.replace(/["']/g,"");
+            } else {
+                return stack.getName(); // fallback to item ID
+            }
+        }
+        return null;
+    });
+    npc.getStoreddata().put("MenuItems", JSON.stringify(names));
+}
 
 // admin gui
 function openAdminGui(player, api) {
@@ -77,12 +96,25 @@ function openAdminGui(player, api) {
     for (var i = 0; i < slotPositions.length; i++) {
         var pos = slotPositions[i];
         var slot = guiRef.addItemSlot(pos.x, pos.y);
-        if (storedSlotItems[i]) try { slot.setStack(player.world.createItemFromNbt(api.stringToNbt(storedSlotItems[i]))); } catch (e) {}
+        // try to restore stack, we keep full stack for display in GUI
+        if (storedSlotItems[i]) {
+            try {
+                var dummy = player.world.createItem(stackFromName(storedSlotItems[i]), 1);
+                slot.setStack(dummy);
+            } catch(e){}
+        }
         mySlots.push(slot);
     }
 
     guiRef.showPlayerInventory(10, 90, false);
     player.showCustomGui(guiRef);
+}
+
+// helper to create dummy stack from item name
+function stackFromName(name){
+    var parts = name.split(":");
+    if(parts.length === 2) return parts[0]+":"+parts[1];
+    return "minecraft:stone"; // fallback
 }
 
 // player gui
@@ -105,7 +137,12 @@ function renderPlayerGui(player, api) {
     for (var i = 0; i < slotPositions.length; i++) {
         var pos = slotPositions[i];
         var slot = guiRef.addItemSlot(pos.x, pos.y);
-        if (storedSlotItems[i]) try { slot.setStack(player.world.createItemFromNbt(api.stringToNbt(storedSlotItems[i]))); } catch (e) {}
+        if (storedSlotItems[i]) {
+            try {
+                var dummy = player.world.createItem(stackFromName(storedSlotItems[i]), 1);
+                slot.setStack(dummy);
+            } catch(e){}
+        }
         mySlots.push(slot);
     }
 
@@ -165,7 +202,7 @@ function spawnCustomerCloneAtManager(player){
             if(ent.getName()!="customer") continue;
             var eData=ent.getStoreddata();
             if(eData.has("InitializedByManager")) continue;
-            eData.put("RestaurantMenu",JSON.stringify(menu));
+            eData.put("RestaurantMenu",JSON.stringify(menu)); // now stores only item names
             eData.put("CounterPos",counterJson);
             eData.put("InitializedByManager","true");
             break;
