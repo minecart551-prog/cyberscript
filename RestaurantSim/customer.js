@@ -23,37 +23,38 @@ function tick(event){
     var world = npc.getWorld();
     var api = event.API;
 
-    // find manager once
-    if(!managerFound){
-        var nearby = world.getNearbyEntities(
-            npc.getX(), npc.getY(), npc.getZ(),
-            scanRadius, 2
-        );
+    // find manager (every tick now to pick up updates)
+    var nearby = world.getNearbyEntities(
+        npc.getX(), npc.getY(), npc.getZ(),
+        scanRadius, 2
+    );
 
-        for(var i=0;i<nearby.length;i++){
-            var other = nearby[i];
-            if(!other || !other.getName) continue;
+    var foundManager = false;
+    for(var i=0;i<nearby.length;i++){
+        var other = nearby[i];
+        if(!other || !other.getName) continue;
 
-            if(other.getName() === "Manager"){
-                var data = other.getStoreddata();
+        if(other.getName() === "Manager"){
+            var data = other.getStoreddata();
 
-                if(data.has("RestaurantMenu")){
-                    try{
-                        menuItems = JSON.parse(data.get("RestaurantMenu"));
-                    }catch(e){
-                        menuItems = [];
-                    }
+            if(data.has("RestaurantMenu")){
+                try{
+                    menuItems = JSON.parse(data.get("RestaurantMenu"));
+                }catch(e){
+                    menuItems = [];
                 }
-
-                if(data.has("CounterPos")){
-                    counterPos = parseCoords(data.get("CounterPos"));
-                }
-
-                managerFound = true;
-                break;
             }
+
+            if(data.has("CounterPos")){
+                counterPos = parseCoords(data.get("CounterPos"));
+            }
+
+            foundManager = true;
+            break;
         }
     }
+
+    if(foundManager) managerFound = true;
 
     // walk to counter and order
     if(managerFound && counterPos){
