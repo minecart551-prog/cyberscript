@@ -49,14 +49,17 @@ function buildSlotPositions() {
     slotPositionsBuilt = true;
 }
 
-// load/save npc menu items
+// load/save npc menu items (names used for GUI)
 function loadNpcMenuItems(npc) {
     var data = npc.getStoreddata();
     return data.has("MenuItems") ? JSON.parse(data.get("MenuItems")) : [];
 }
 
-// simplified: store only item names instead of full NBT
-function saveNpcMenuItems(npc) {
+// updated save: keeps GUI-friendly names (MenuItems) and writes full-NBT list for highlighted slots (RestaurantMenu)
+// npc: NPC to write to
+// player: (optional) player who closed GUI - used to read that player's SelectedMenuSlots
+function saveNpcMenuItems(npc, player) {
+    // 1) Save GUI-friendly names (unchanged)
     var names = mySlots.map(function(slot) {
         var stack = slot.getStack();
         if (stack && !stack.isEmpty()) {
@@ -64,12 +67,52 @@ function saveNpcMenuItems(npc) {
             if (nbt && nbt.tag && nbt.tag.display && nbt.tag.display.Name) {
                 return nbt.tag.display.Name.replace(/["']/g, "");
             } else {
-                return stack.getName(); // fallback to item ID
+                return stack.getName();
             }
         }
         return null;
     });
     npc.getStoreddata().put("MenuItems", JSON.stringify(names));
+
+    // 2) Build highlighted full-NBT list from selected slots and save to RestaurantMenu
+    var highlightedNbt = [];
+
+    // determine which selection source to use:
+    // prefer player's SelectedMenuSlots (the player that closed admin GUI),
+    // fall back to an NPC-stored SelectedMenuSlots, then to global selectedSlots var.
+    var sel = null;
+    try {
+        if (player && player.getStoreddata && player.getStoreddata().has("SelectedMenuSlots")) {
+            sel = JSON.parse(player.getStoreddata().get("SelectedMenuSlots"));
+        } else {
+            var data = npc.getStoreddata();
+            if (data.has("SelectedMenuSlots")) {
+                try { sel = JSON.parse(data.get("SelectedMenuSlots")); } catch (e) { sel = null; }
+            }
+        }
+    } catch (e) {
+        sel = null;
+    }
+    if (!Array.isArray(sel)) sel = Array.isArray(selectedSlots) ? selectedSlots : [];
+
+    // collect full NBT from each selected index
+    for (var i = 0; i < sel.length; i++) {
+        var idx = sel[i];
+        if (typeof idx !== "number") continue;
+        if (idx < 0 || idx >= mySlots.length) continue;
+        var s = mySlots[idx] && mySlots[idx].getStack ? mySlots[idx].getStack() : null;
+        if (s && !s.isEmpty()) {
+            try {
+                var nbtObj = s.getItemNbt(); // IItemNbt
+                highlightedNbt.push(nbtObj.toJsonString());
+            } catch (e) {
+                // skip if unable to serialize
+            }
+        }
+    }
+
+    // write full NBT list for customers
+    npc.getStoreddata().put("RestaurantMenu", JSON.stringify(highlightedNbt));
 }
 
 // admin gui
@@ -96,7 +139,6 @@ function openAdminGui(player, api) {
     for (var i = 0; i < slotPositions.length; i++) {
         var pos = slotPositions[i];
         var slot = guiRef.addItemSlot(pos.x, pos.y);
-        // try to restore stack, we keep full stack for display in GUI
         if (storedSlotItems[i]) {
             try {
                 var dummy = player.world.createItem(stackFromName(storedSlotItems[i]), 1);
@@ -114,7 +156,7 @@ function openAdminGui(player, api) {
 function stackFromName(name) {
     var parts = name.split(":");
     if (parts.length === 2) return parts[0] + ":" + parts[1];
-    return "minecraft:stone"; // fallback
+    return "minecraft:stone";
 }
 
 // player gui
@@ -260,7 +302,14 @@ function spawnCustomerCloneAtManager(player) {
         catch(e2) { nearby = []; } 
     }
 
-    var menu = loadNpcMenuItems(lastNpc);
+    // prefer highlighted full-NBT list if present, else fallback to MenuItems names
+    var menu = [];
+    if (npcData.has("RestaurantMenu")) {
+        try { menu = JSON.parse(npcData.get("RestaurantMenu")); } catch(e) { menu = []; }
+    } else {
+        menu = loadNpcMenuItems(lastNpc);
+    }
+
     var counterStr = npcData.has("CounterPos") ? npcData.get("CounterPos") : null;
     var counter = parseCoordsString(counterStr);
     if (!counter) counter = { x: lastNpc.getX ? lastNpc.getX() : spawn.x, y: lastNpc.getY ? lastNpc.getY() : spawn.y, z: lastNpc.getZ ? lastNpc.getZ() : spawn.z };
@@ -273,7 +322,7 @@ function spawnCustomerCloneAtManager(player) {
             if (ent.getName() != "customer") continue;
             var eData = ent.getStoreddata();
             if (eData.has("InitializedByManager")) continue;
-            eData.put("RestaurantMenu", JSON.stringify(menu));  // stores the full NBT data of the menu
+            eData.put("RestaurantMenu", JSON.stringify(menu));  // customers read RestaurantMenu
             eData.put("CounterPos", counterJson);
             eData.put("InitializedByManager", "true");
             break;
@@ -287,6 +336,8 @@ function customGuiButton(event) {
     if (event.buttonId === ID_START_JOB_BUTTON) {
         player.getStoreddata().put("RestaurantJobActive", "true");
         player.message("Job started");
+        // ensure RestaurantMenu is up-to-date before spawning
+        saveNpcMenuItems(lastNpc, player);
         spawnCustomerCloneAtManager(player);
     }
     if (event.buttonId === ID_STOP_JOB_BUTTON) {
@@ -300,7 +351,9 @@ function customGuiClosed(event) {
     if (!isAdminGui || !lastNpc) return;
     var gui = event.gui;
     var npcData = lastNpc.getStoreddata();
-    saveNpcMenuItems(lastNpc);
+
+    // pass the player so saveNpcMenuItems can extract that player's SelectedMenuSlots
+    saveNpcMenuItems(lastNpc, event.player);
 
     var spawnField = gui.getComponent(ID_FIELD_SPAWN);
     var counterField = gui.getComponent(ID_FIELD_COUNTER);
