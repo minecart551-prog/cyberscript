@@ -5,13 +5,14 @@ var navigationSpeed = 0.4;
 var scanRadius = 16;
 var orderPlaced = false;
 
-var orderedItems = []; // array of IItemStack (max 3)
+var orderedItems = [];
 var assignedChair = null;
 var chairReached = false;
 var spawnPos = null;
 var chairRequested = false;
 var guiClosed = false;
 var initialized = false;
+var returningToSpawn = false;
 
 function parseCoords(str){
     if(!str) return null;
@@ -22,60 +23,49 @@ function parseCoords(str){
         if(obj && typeof obj.x === "number" && typeof obj.y === "number" && typeof obj.z === "number"){
             return {x: obj.x, y: obj.y, z: obj.z};
         }
-    } catch(e) {
-        // Not JSON, try space-separated format
-    }
+    } catch(e) {}
     
     // Fallback: parse as space-separated numbers
     var p = str.split(/[ ,]+/);
     if(p.length < 3) return null;
-    var x = parseFloat(p[0]);
-    var y = parseFloat(p[1]);
-    var z = parseFloat(p[2]);
+    var x = parseFloat(p[0]), y = parseFloat(p[1]), z = parseFloat(p[2]);
     if(isNaN(x) || isNaN(y) || isNaN(z)) return null;
     return {x:x, y:y, z:z};
 }
 
-// Initialize customer - clear old session data and save spawn position
 function init(event){
     var npc = event.npc;
     var selfData = npc.getStoreddata();
     
-    // Clear any old chair assignments from previous sessions
+    // Clear old session data
     selfData.put("AssignedChair", "");
     selfData.put("RequestChair", "false");
     selfData.put("Leave", "false");
     selfData.put("GuiClosed", "false");
     selfData.put("AssignedByManager", "false");
     
-    // Save the ACTUAL spawn position (where customer spawned)
+    // Save spawn position
     spawnPos = {x: npc.getX(), y: npc.getY(), z: npc.getZ()};
-    
     initialized = true;
 }
 
-// tick
 function tick(event){
     var npc = event.npc;
     var world = npc.getWorld();
     var api = event.API;
     var selfData = npc.getStoreddata();
 
-    // Initialize on first tick if not already done
+    // Initialize on first tick
     if(!initialized){
-        // Clear old data
         selfData.put("AssignedChair", "");
         selfData.put("RequestChair", "false");
         selfData.put("Leave", "false");
         selfData.put("GuiClosed", "false");
-        
-        // Save ACTUAL spawn position
         spawnPos = {x: npc.getX(), y: npc.getY(), z: npc.getZ()};
-        
         initialized = true;
     }
 
-    // Check if GUI was closed via storeddata
+    // Check GUI closed via storeddata
     if(orderPlaced && !guiClosed && !chairRequested){
         try{
             if(selfData.has("GuiClosed") && selfData.get("GuiClosed") === "true"){
@@ -84,73 +74,62 @@ function tick(event){
         }catch(e){}
     }
 
-    // Check for Leave flag - return to spawn point
+    // Check for Leave flag
     try{
         if(selfData.has("Leave") && selfData.get("Leave") === "true"){
-            npc.say("Time's up! Heading back to spawn...");
-            selfData.put("Leave", "false");
-            
-            if(spawnPos){
-                npc.navigateTo(spawnPos.x, spawnPos.y, spawnPos.z, navigationSpeed);
-                var dx2 = npc.getX() - spawnPos.x;
-                var dy2 = npc.getY() - spawnPos.y;
-                var dz2 = npc.getZ() - spawnPos.z;
-                var distSqToSpawn = dx2*dx2 + dy2*dy2 + dz2*dz2;
-                var distToSpawn = Math.sqrt(distSqToSpawn);
-                
-                // Show distance to spawn every second
-                if(world.getTotalTime() % 20 === 0){
-                    npc.say("Returning to spawn, distance: " + distToSpawn.toFixed(1));
-                }
-                
-                // More forgiving distance check (within 3 blocks)
-                if(distSqToSpawn < 9){
-                    npc.say("Reached spawn point, despawning now!");
-                    npc.despawn();
-                }
-            } else {
-                npc.say("No spawn point saved, despawning immediately.");
-                npc.despawn();
+            if(!returningToSpawn){
+                returningToSpawn = true;
+                selfData.put("Leave", "false");
             }
-            return;
         }
     }catch(e){}
 
-    // Check for chair assignment EVERY TICK (but only AFTER we've ordered and GUI closed)
+    // Return to spawn
+    if(returningToSpawn){
+        if(spawnPos){
+            var dx = npc.getX() - spawnPos.x;
+            var dy = npc.getY() - spawnPos.y;
+            var dz = npc.getZ() - spawnPos.z;
+            var distSq = dx*dx + dy*dy + dz*dz;
+            
+            npc.navigateTo(spawnPos.x, spawnPos.y, spawnPos.z, navigationSpeed);
+            
+            if(distSq < 1.0){
+                npc.despawn();
+            }
+        } else {
+            npc.despawn();
+        }
+        return;
+    }
+
+    // Check for chair assignment
     try{
         if(!assignedChair && chairRequested && selfData.has("AssignedChair") && selfData.get("AssignedChair") !== ""){
             var chairStr = selfData.get("AssignedChair");
             var ac = parseCoords(chairStr);
             if(ac){
                 assignedChair = ac;
-                npc.say("Got my chair assignment! Going to: " + assignedChair.x + " " + assignedChair.y + " " + assignedChair.z);
             }
         }
     }catch(e){}
 
-    // If sitting at chair, just wait
+    // Wait at chair
     if(chairReached){
         return;
     }
 
-    // If we have chair, navigate to it
+    // Navigate to chair
     if(assignedChair){
         var ddx = npc.getX() - assignedChair.x;
         var ddy = npc.getY() - assignedChair.y;
         var ddz = npc.getZ() - assignedChair.z;
         var distSq = ddx*ddx + ddy*ddy + ddz*ddz;
-        var dist = Math.sqrt(distSq);
-        
-        // Say distance every 20 ticks
-        if(world.getTotalTime() % 20 === 0){
-            npc.say("Walking to chair, distance: " + dist.toFixed(1));
-        }
 
         npc.navigateTo(assignedChair.x, assignedChair.y, assignedChair.z, navigationSpeed);
 
-        if(distSq < 2.0){
+        if(distSq < 1.0){
             chairReached = true;
-            npc.say("Sitting at my chair now.");
         }
         return;
     }
@@ -159,7 +138,7 @@ function tick(event){
     var nearby = world.getNearbyEntities(npc.getX(), npc.getY(), npc.getZ(), scanRadius, 2);
     var foundManager = false;
     
-    for(var i=0;i<nearby.length;i++){
+    for(var i=0; i<nearby.length; i++){
         var other = nearby[i];
         if(!other || !other.getName) continue;
         if(other.getName() === "Manager"){
@@ -210,9 +189,6 @@ function tick(event){
                     var item = world.createItemFromNbt(nbt);
                     orderedItems.push(item);
                 }
-                npc.say("I've decided what to order.");
-            }else{
-                npc.say("There's nothing on the menu!");
             }
         }
     }
@@ -223,13 +199,10 @@ function tick(event){
             selfData.put("RequestChair", "true");
             chairRequested = true;
             guiClosed = false;
-            
-            npc.say("Requesting a chair from manager...");
         }catch(e){}
     }
 }
 
-// player interaction: show customer's order GUI
 function interact(event){
     var player = event.player;
     var api = event.API;
@@ -260,7 +233,6 @@ function interact(event){
     player.showCustomGui(gui);
 }
 
-// customGuiClosed should be called when the player closes the GUI
 function customGuiClosed(event){
     try{
         guiClosed = true;
