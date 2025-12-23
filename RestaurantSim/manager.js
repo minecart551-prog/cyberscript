@@ -30,9 +30,13 @@ var nextLineId = 1000;
 var slotPositionsBuilt = false;
 
 // job / chairs runtime
+
+// configurable: how many ticks a chair stays taken after assignment (default 30 seconds = 600 ticks)
+var CHAIR_FREE_TICKS = 2;
+
 var managerJobActive = false;
-var jobClockSeconds = 0; // counts up while job active
-var chairsList = []; // array of {x,y,z,taken:boolean,freeAt:number}
+var jobTicks = 0; // counts up while job active (in ticks)
+var chairsList = []; // array of {x,y,z,taken:boolean,freeAtTick:number}
 
 // interact
 function interact(event) {
@@ -74,7 +78,7 @@ function parseChairListString(str) {
         if (nums.length < 3) continue;
         var x = parseFloat(nums[0]), y = parseFloat(nums[1]), z = parseFloat(nums[2]);
         if (isNaN(x) || isNaN(y) || isNaN(z)) continue;
-        out.push({ x: x, y: y, z: z, taken: false, freeAt: 0 });
+        out.push({ x: x, y: y, z: z, taken: false, freeAtTick: 0 });
     }
     return out;
 }
@@ -85,6 +89,53 @@ function loadChairList(npc) {
 }
 function saveChairList(npc, list) {
     npc.getStoreddata().put("ChairList", JSON.stringify(list));
+}
+
+// reset chairs runtime (mark all free)
+function resetChairRuntime(npc) {
+    for (var i = 0; i < chairsList.length; i++) {
+        chairsList[i].taken = false;
+        chairsList[i].freeAtTick = 0;
+    }
+    saveChairList(npc, chairsList);
+}
+
+// Find a free chair index in chairsList (returns index or -1)
+function findFreeChairIndex() {
+    for (var i = 0; i < chairsList.length; i++) {
+        if (!chairsList[i].taken) return i;
+    }
+    return -1;
+}
+
+// Assign a chair to a given customer entity (customer must be an entity instance)
+function assignChairToCustomer(npcManager, customer) {
+    // ensure chairsList is populated
+    if (!Array.isArray(chairsList) || chairsList.length === 0) return false;
+
+    var pickIdx = -1;
+    var freeIndices = [];
+    for (var i = 0; i < chairsList.length; i++) {
+        if (!chairsList[i].taken) freeIndices.push(i);
+    }
+    if (freeIndices.length === 0) return false;
+
+    pickIdx = freeIndices[Math.floor(Math.random() * freeIndices.length)];
+    chairsList[pickIdx].taken = true;
+    chairsList[pickIdx].freeAtTick = jobTicks + CHAIR_FREE_TICKS;
+
+    // persist
+    saveChairList(npcManager, chairsList);
+
+    // write the assigned chair to the customer's storeddata so customer can navigate to it
+    var assigned = { x: chairsList[pickIdx].x, y: chairsList[pickIdx].y, z: chairsList[pickIdx].z };
+    try {
+        customer.getStoreddata().put("AssignedChair", JSON.stringify(assigned));
+        // signal customer that assignment happened (customer script should react)
+        customer.getStoreddata().put("AssignedByManager", "true");
+    } catch (e) {}
+
+    return true;
 }
 
 // updated save: keeps GUI-friendly names (MenuItems) and writes full-NBT list for highlighted slots (RestaurantMenu)
@@ -345,8 +396,10 @@ function spawnCustomerCloneAtManager(player) {
         menu = loadNpcMenuItems(lastNpc);
     }
 
-    // load chairs runtime from npcData
+    // load chairs runtime from npcData (but DO NOT auto-assign chairs here;
+    // assignment will be done later when customer requests a chair)
     var chairs = loadChairList(lastNpc);
+    chairsList = (Array.isArray(chairs) && chairs.length > 0) ? chairs : chairsList;
 
     var counterStr = npcData.has("CounterPos") ? npcData.get("CounterPos") : null;
     var counter = parseCoordsString(counterStr);
@@ -361,28 +414,9 @@ function spawnCustomerCloneAtManager(player) {
             var eData = ent.getStoreddata();
             if (eData.has("InitializedByManager")) continue;
 
-            // assign a random free chair (if any)
-            var assignedChair = null;
-            if (Array.isArray(chairs) && chairs.length > 0) {
-                // find free chairs
-                var freeIdx = [];
-                for (var ci = 0; ci < chairs.length; ci++) {
-                    if (!chairs[ci].taken) freeIdx.push(ci);
-                }
-                if (freeIdx.length > 0) {
-                    var pick = freeIdx[Math.floor(Math.random() * freeIdx.length)];
-                    chairs[pick].taken = true;
-                    // set freeAt in seconds from jobClockSeconds
-                    chairs[pick].freeAt = (typeof jobClockSeconds === "number" ? jobClockSeconds : 0) + 30;
-                    assignedChair = { x: chairs[pick].x, y: chairs[pick].y, z: chairs[pick].z };
-                }
-                // persist chairs changes
-                saveChairList(lastNpc, chairs);
-            }
-
+            // DO NOT assign chair now; customers will request assignment after their GUI is closed.
             eData.put("RestaurantMenu", JSON.stringify(menu));  // customers read RestaurantMenu
             eData.put("CounterPos", counterJson);
-            if (assignedChair) eData.put("AssignedChair", JSON.stringify(assignedChair));
             eData.put("InitializedByManager", "true");
             break;
         } catch(e) {}
@@ -407,16 +441,21 @@ function customGuiButton(event) {
                     var chairText = chairsField.getText();
                     lastNpc.getStoreddata().put("ChairListText", chairText);
                     var parsed = parseChairListString(chairText);
+                    // reset taken/freeAt when starting job
+                    for (var i = 0; i < parsed.length; i++) { parsed[i].taken = false; parsed[i].freeAtTick = 0; }
                     saveChairList(lastNpc, parsed);
                     chairsList = parsed;
                 }
             }
         } catch (e) {}
 
-        // start job clock
+        // start job clock: reset tick counter and mark job active
         managerJobActive = true;
-        jobClockSeconds = 0;
+        jobTicks = 0;
         lastNpc.getStoreddata().put("ManagerJobActive", "true");
+
+        // ensure all chairs runtime reset
+        resetChairRuntime(lastNpc);
 
         spawnCustomerCloneAtManager(player);
     }
@@ -425,6 +464,15 @@ function customGuiButton(event) {
         player.message("Job stopped");
         managerJobActive = false;
         lastNpc.getStoreddata().put("ManagerJobActive", "false");
+
+        // On stop, mark all chairs empty and reset timers
+        chairsList = loadChairList(lastNpc);
+        for (var i = 0; i < chairsList.length; i++) {
+            chairsList[i].taken = false;
+            chairsList[i].freeAtTick = 0;
+        }
+        saveChairList(lastNpc, chairsList);
+        jobTicks = 0;
     }
 }
 
@@ -448,6 +496,8 @@ function customGuiClosed(event) {
         var chairText = chairsField.getText();
         npcData.put("ChairListText", chairText);
         var parsed = parseChairListString(chairText);
+        // reset runtime markers
+        for (var i = 0; i < parsed.length; i++) { parsed[i].taken = false; parsed[i].freeAtTick = 0; }
         saveChairList(lastNpc, parsed);
         chairsList = parsed;
     }
@@ -464,37 +514,85 @@ function tick(event) {
         try { chairsList = JSON.parse(npc.getStoreddata().get("ChairList")); } catch (e) { chairsList = []; }
     }
 
-    // increment clock when active
+    // If job active, advance tick counter and free chairs whose freeAtTick <= jobTicks
     if (managerJobActive) {
-        jobClockSeconds = (typeof jobClockSeconds === "number") ? jobClockSeconds + 1/20 : 0; // approx ticks -> seconds (20 ticks/second)
-        // check chairs for release
+        jobTicks = (typeof jobTicks === "number") ? jobTicks + 1 : 1;
+
         var changed = false;
         for (var i = 0; i < chairsList.length; i++) {
             var ch = chairsList[i];
-            if (ch && ch.taken && typeof ch.freeAt === "number" && jobClockSeconds >= ch.freeAt) {
+            if (ch && ch.taken && typeof ch.freeAtTick === "number" && jobTicks >= ch.freeAtTick) {
+                // free it
                 ch.taken = false;
-                ch.freeAt = 0;
+                ch.freeAtTick = 0;
                 changed = true;
 
-                // notify nearby players to send customers to spawn (20-block radius)
+                // Notify nearby customers who had that chair assigned to leave.
+                // We'll search for nearby NPC customers and check assigned chair
+                try {
+                    var nearbyEntities = world.getNearbyEntities(npc.getX(), npc.getY(), npc.getZ(), 50, 2); // 2 = NPCs
+                    for (var ei = 0; ei < nearbyEntities.length; ei++) {
+                        try {
+                            var ent = nearbyEntities[ei];
+                            if (!ent || !ent.getName) continue;
+                            if (ent.getName() !== "customer") continue;
+                            var ed = ent.getStoreddata();
+                            if (ed.has("AssignedChair")) {
+                                try {
+                                    var ac = JSON.parse(ed.get("AssignedChair"));
+                                    if (ac && ac.x === ch.x && ac.y === ch.y && ac.z === ch.z) {
+                                        // tell the customer to leave/spawn (customer script should react to this flag)
+                                        ed.put("Leave", "true");
+                                        // also remove the assignment so they won't be reassigned
+                                        ed.put("AssignedChair", "");
+                                    }
+                                } catch (e) {}
+                            }
+                        } catch (e) {}
+                    }
+                } catch (e) {}
+
+                // notify nearby players (20-block radius) for UX
                 try {
                     var playersNearby = world.getNearbyEntities(npc.getX(), npc.getY(), npc.getZ(), 20, 1); // 1 = players
                     for (var pi = 0; pi < playersNearby.length; pi++) {
-                        try { playersNearby[pi].message("A chair is now free at: " + ch.x + " " + ch.y + " " + ch.z + ". Customers should return to spawn."); } catch (e) {}
+                        try { playersNearby[pi].message("A chair is now free at: " + ch.x + " " + ch.y + " " + ch.z + "."); } catch (e) {}
                     }
                 } catch (e) {}
             }
         }
+
         if (changed) {
             saveChairList(npc, chairsList);
         }
+
+        // Also: process any customers that requested chairs (they set RequestChair="true" in their storeddata)
+        try {
+            // look for customers within some radius (50 blocks)
+            var customersNearby = world.getNearbyEntities(npc.getX(), npc.getY(), npc.getZ(), 50, 2);
+            for (var ci = 0; ci < customersNearby.length; ci++) {
+                try {
+                    var cust = customersNearby[ci];
+                    if (!cust || !cust.getName) continue;
+                    if (cust.getName() !== "customer") continue;
+                    var cdata = cust.getStoreddata();
+                    if (cdata.has("RequestChair") && cdata.get("RequestChair") === "true") {
+                        // attempt to assign
+                        var assigned = assignChairToCustomer(npc, cust);
+                        // clear the RequestChair flag so we don't re-process; the customer can still have AssignedChair stored
+                        try { cdata.put("RequestChair", "false"); } catch (e) {}
+                        // we don't break — continue assigning other waiting customers
+                    }
+                } catch (e) {}
+            }
+        } catch (e) {}
     } else {
         // if managerJobActive false, try to read stored flag (in case of reload)
         try {
             var d = npc.getStoreddata();
             if (d.has("ManagerJobActive")) {
                 managerJobActive = (d.get("ManagerJobActive") === "true");
-                if (!managerJobActive) jobClockSeconds = 0;
+                if (!managerJobActive) jobTicks = 0;
             }
         } catch (e) {}
     }
