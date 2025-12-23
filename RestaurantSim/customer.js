@@ -207,7 +207,7 @@ function tick(event){
                 var dy2 = npc.getY() - spawnPos.y;
                 var dz2 = npc.getZ() - spawnPos.z;
                 if(dx2*dx2 + dy2*dy2 + dz2*dz2 < 1){
-                    npc.remove();
+                    npc.despawn();
                 }
             } else {
                 npc.despawn();
