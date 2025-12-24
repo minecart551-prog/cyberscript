@@ -213,7 +213,7 @@ function tick(event){
             
             npc.navigateTo(spawnPos.x, spawnPos.y, spawnPos.z, navigationSpeed);
             
-            if(distSq < 1.0){
+            if(distSq < 2.0){
                 npc.despawn();
             }
         } else {
