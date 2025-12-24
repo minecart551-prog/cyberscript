@@ -75,14 +75,10 @@ function tryClaimChair(npc, managerNpc){
     try {
         if(managerData.has("JobTicks")){
             managerJobTicks = parseInt(managerData.get("JobTicks"));
-            npc.say("Current JobTicks: " + managerJobTicks);
-        } else {
-            npc.say("ERROR: No JobTicks in manager!");
         }
         
         if(managerData.has("ChairFreeTicks")){
             chairFreeTicks = parseInt(managerData.get("ChairFreeTicks"));
-            npc.say("Chair duration: " + chairFreeTicks + " ticks");
         }
     } catch(e) {}
     
@@ -94,8 +90,6 @@ function tryClaimChair(npc, managerNpc){
             chairsList[i].taken = true;
             chairsList[i].freeAtTick = freeAt;
             chairsList[i].occupiedBy = myId;
-            
-            npc.say("Claimed chair " + i + ", will free at tick " + freeAt);
             
             // Save back to manager
             managerData.put("ChairList", JSON.stringify(chairsList));
@@ -231,7 +225,7 @@ function tick(event){
             
             npc.navigateTo(spawnPos.x, spawnPos.y, spawnPos.z, navigationSpeed);
             
-            if(distSq < 2.0){
+            if(distSq < 4.0){
                 npc.despawn();
             }
         } else {
@@ -266,7 +260,7 @@ function tick(event){
         if(claimed){
             guiClosed = false; // Don't try again
         } else {
-            // No chairs available
+            // No chairs available - show message and wait
             npc.say("No chairs available, waiting at counter.");
             guiClosed = false; // Reset so player can try again by clicking
         }
