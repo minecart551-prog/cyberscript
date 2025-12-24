@@ -146,6 +146,17 @@ function isMyChairExpired(npc, managerNpc){
     return false;
 }
 
+// Check if manager signaled job stop
+function isJobStopped(managerNpc){
+    if(!managerNpc) return false;
+    
+    var managerData = managerNpc.getStoreddata();
+    if(managerData.has("JobStopped")){
+        return managerData.get("JobStopped") === "true";
+    }
+    return false;
+}
+
 function tick(event){
     var npc = event.npc;
     var world = npc.getWorld();
@@ -182,6 +193,13 @@ function tick(event){
             managerFound = true;
             break;
         }
+    }
+
+    // Check if job was stopped by manager
+    if(managerNpc && isJobStopped(managerNpc)){
+        returningToSpawn = true;
+        assignedChair = null;
+        chairReached = false;
     }
 
     // Check GUI closed
