@@ -35,6 +35,16 @@ var managerJobActive = false;
 var jobTicks = 0;
 var chairsList = []; // array of {x,y,z,taken:boolean,freeAtTick:number,occupiedBy:string}
 
+// Customer spawning config - ADJUST THESE VALUES
+var MIN_CUSTOMERS = 1; // Minimum customers in restaurant at once
+var MAX_CUSTOMERS = 6; // Maximum customers in restaurant at once
+var MIN_SPAWN_INTERVAL = 20; // Minimum ticks between spawns (5 seconds)
+var MAX_SPAWN_INTERVAL = 40; // Maximum ticks between spawns (15 seconds)
+
+// Customer spawning runtime
+var currentCustomerCount = 0;
+var nextSpawnTick = 0;
+
 function interact(event) {
     var player = event.player;
     var api = event.API;
@@ -300,14 +310,18 @@ function parseCoordsString(str) {
     return { x: x, y: y, z: z };
 }
 
-function spawnCustomerCloneAtManager(player) {
-    if (!lastNpc) return;
-    var npcData = lastNpc.getStoreddata();
+function getRandomSpawnInterval() {
+    return MIN_SPAWN_INTERVAL + Math.floor(Math.random() * (MAX_SPAWN_INTERVAL - MIN_SPAWN_INTERVAL + 1));
+}
+
+function spawnCustomerCloneAtManager(npc) {
+    if (!npc) return;
+    var npcData = npc.getStoreddata();
     var spawnStr = npcData.has("CustomerSpawn") ? npcData.get("CustomerSpawn") : null;
     var spawn = parseCoordsString(spawnStr);
-    if (!spawn) spawn = { x: lastNpc.getX ? lastNpc.getX() : 0, y: lastNpc.getY ? lastNpc.getY() : 0, z: lastNpc.getZ ? lastNpc.getZ() : 0 };
+    if (!spawn) spawn = { x: npc.getX ? npc.getX() : 0, y: npc.getY ? npc.getY() : 0, z: npc.getZ ? npc.getZ() : 0 };
 
-    var world = player.world;
+    var world = npc.getWorld();
     try { 
         world.spawnClone(Math.floor(spawn.x), Math.floor(spawn.y), Math.floor(spawn.z), 3, "customer"); 
     } catch(e) { 
@@ -328,15 +342,15 @@ function spawnCustomerCloneAtManager(player) {
     if (npcData.has("RestaurantMenu")) {
         try { menu = JSON.parse(npcData.get("RestaurantMenu")); } catch(e) { menu = []; }
     } else {
-        menu = loadNpcMenuItems(lastNpc);
+        menu = loadNpcMenuItems(npc);
     }
 
-    var chairs = loadChairList(lastNpc);
+    var chairs = loadChairList(npc);
     chairsList = (Array.isArray(chairs) && chairs.length > 0) ? chairs : chairsList;
 
     var counterStr = npcData.has("CounterPos") ? npcData.get("CounterPos") : null;
     var counter = parseCoordsString(counterStr);
-    if (!counter) counter = { x: lastNpc.getX ? lastNpc.getX() : spawn.x, y: lastNpc.getY ? lastNpc.getY() : spawn.y, z: lastNpc.getZ ? lastNpc.getZ() : spawn.z };
+    if (!counter) counter = { x: npc.getX ? npc.getX() : spawn.x, y: npc.getY ? npc.getY() : spawn.y, z: npc.getZ ? npc.getZ() : spawn.z };
     var counterJson = JSON.stringify(counter);
 
     for (var i = 0; i < nearby.length; i++) {
@@ -350,6 +364,10 @@ function spawnCustomerCloneAtManager(player) {
             eData.put("RestaurantMenu", JSON.stringify(menu));
             eData.put("CounterPos", counterJson);
             eData.put("InitializedByManager", "true");
+            
+            // Track this customer
+            currentCustomerCount++;
+            npcData.put("CurrentCustomerCount", currentCustomerCount.toString());
             break;
         } catch(e) {}
     }
@@ -403,11 +421,15 @@ function customGuiButton(event) {
 
         managerJobActive = true;
         jobTicks = 0;
+        currentCustomerCount = 0;
+        nextSpawnTick = jobTicks + getRandomSpawnInterval();
+        
         lastNpc.getStoreddata().put("ManagerJobActive", "true");
         lastNpc.getStoreddata().put("JobStopped", "false");
+        lastNpc.getStoreddata().put("CurrentCustomerCount", "0");
 
         resetChairRuntime(lastNpc);
-        spawnCustomerCloneAtManager(player);
+        spawnCustomerCloneAtManager(lastNpc);
     }
     if (event.buttonId === ID_STOP_JOB_BUTTON) {
         player.getStoreddata().put("RestaurantJobActive", "false");
@@ -426,6 +448,9 @@ function customGuiButton(event) {
         }
         saveChairList(lastNpc, chairsList);
         jobTicks = 0;
+        currentCustomerCount = 0;
+        nextSpawnTick = 0;
+        lastNpc.getStoreddata().put("CurrentCustomerCount", "0");
     }
 }
 
@@ -475,7 +500,11 @@ function tick(event) {
             var d = npc.getStoreddata();
             if (d.has("ManagerJobActive")) {
                 managerJobActive = (d.get("ManagerJobActive") === "true");
-                if (!managerJobActive) jobTicks = 0;
+                if (!managerJobActive) {
+                    jobTicks = 0;
+                    currentCustomerCount = 0;
+                    nextSpawnTick = 0;
+                }
             }
         } catch (e) {}
         return;
@@ -487,29 +516,48 @@ function tick(event) {
     npc.getStoreddata().put("JobTicks", jobTicks.toString());
     npc.getStoreddata().put("ChairFreeTicks", CHAIR_FREE_TICKS.toString());
 
-    // DEBUG: Every second, show occupied chairs
-    if(jobTicks % 20 === 0){
-        for(var i = 0; i < chairsList.length; i++){
-            if(chairsList[i].taken){
-                npc.say("Chair " + i + ": freeAt=" + chairsList[i].freeAtTick + ", now=" + jobTicks);
-            }
+    // Load current customer count from storage (in case customers despawned)
+    try {
+        if (npc.getStoreddata().has("CurrentCustomerCount")) {
+            currentCustomerCount = parseInt(npc.getStoreddata().get("CurrentCustomerCount"));
         }
-    }
+    } catch (e) {}
 
-    // Just free expired chairs - that's it!
+    // Free expired chairs and decrease customer count
     var changed = false;
     for (var i = 0; i < chairsList.length; i++) {
         var ch = chairsList[i];
         if (ch && ch.taken && typeof ch.freeAtTick === "number" && jobTicks >= ch.freeAtTick) {
-            npc.say("FREEING chair " + i);
             ch.taken = false;
             ch.freeAtTick = 0;
             ch.occupiedBy = "";
             changed = true;
+            
+            // Customer left, decrease count
+            if (currentCustomerCount > 0) {
+                currentCustomerCount--;
+                npc.getStoreddata().put("CurrentCustomerCount", currentCustomerCount.toString());
+            }
         }
     }
 
     if (changed) {
         saveChairList(npc, chairsList);
+    }
+
+    // Spawn new customers if needed
+    if (jobTicks >= nextSpawnTick) {
+        if (currentCustomerCount < MIN_CUSTOMERS) {
+            // Always spawn if below minimum
+            spawnCustomerCloneAtManager(npc);
+            nextSpawnTick = jobTicks + getRandomSpawnInterval();
+        } else if (currentCustomerCount < MAX_CUSTOMERS) {
+            // Spawn randomly if between min and max
+            spawnCustomerCloneAtManager(npc);
+            nextSpawnTick = jobTicks + getRandomSpawnInterval();
+        } else {
+            // At max capacity, check again later
+            nextSpawnTick = jobTicks + getRandomSpawnInterval();
+        }
     }
 }
