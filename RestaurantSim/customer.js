@@ -6,13 +6,17 @@ var scanRadius = 16;
 var orderPlaced = false;
 
 var orderedItems = [];
+var orderedPrices = []; // Store prices for ordered items
 var assignedChair = null;
 var chairReached = false;
 var spawnPos = null;
 var guiClosed = false;
 var initialized = false;
 var returningToSpawn = false;
-var myChairIndex = -1; // Which chair index we claimed
+var myChairIndex = -1;
+var pricingData = {};
+var paymentReceived = false;
+var paymentCheckTicks = 0;
 
 function parseCoords(str){
     if(!str) return null;
@@ -37,12 +41,12 @@ function init(event){
     
     selfData.put("Leave", "false");
     selfData.put("GuiClosed", "false");
+    selfData.put("PaymentReceived", "false");
     
     spawnPos = {x: npc.getX(), y: npc.getY(), z: npc.getZ()};
     initialized = true;
 }
 
-// Get a unique ID for this customer
 function getMyId(npc){
     try {
         return npc.getEntityId ? npc.getEntityId().toString() : npc.getName();
@@ -51,7 +55,6 @@ function getMyId(npc){
     }
 }
 
-// Try to claim a free chair from manager
 function tryClaimChair(npc, managerNpc){
     if(!managerNpc) return false;
     
@@ -69,9 +72,8 @@ function tryClaimChair(npc, managerNpc){
     
     var myId = getMyId(npc);
     
-    // Get current job ticks and chair duration from manager
     var managerJobTicks = 0;
-    var chairFreeTicks = 600; // default fallback
+    var chairFreeTicks = 600;
     try {
         if(managerData.has("JobTicks")){
             managerJobTicks = parseInt(managerData.get("JobTicks"));
@@ -82,19 +84,15 @@ function tryClaimChair(npc, managerNpc){
         }
     } catch(e) {}
     
-    // Find first free chair
     for(var i = 0; i < chairsList.length; i++){
         if(!chairsList[i].taken){
-            // Claim it!
             var freeAt = managerJobTicks + chairFreeTicks;
             chairsList[i].taken = true;
             chairsList[i].freeAtTick = freeAt;
             chairsList[i].occupiedBy = myId;
             
-            // Save back to manager
             managerData.put("ChairList", JSON.stringify(chairsList));
             
-            // Remember which chair we took
             myChairIndex = i;
             assignedChair = {x: chairsList[i].x, y: chairsList[i].y, z: chairsList[i].z};
             
@@ -102,10 +100,9 @@ function tryClaimChair(npc, managerNpc){
         }
     }
     
-    return false; // No free chairs
+    return false;
 }
 
-// Check if our chair time is up
 function isMyChairExpired(npc, managerNpc){
     if(myChairIndex === -1) return false;
     if(!managerNpc) return false;
@@ -113,7 +110,6 @@ function isMyChairExpired(npc, managerNpc){
     var managerData = managerNpc.getStoreddata();
     if(!managerData.has("ChairList")) return false;
     
-    // ALWAYS reload fresh from manager to see current status
     var chairsList;
     try {
         chairsList = JSON.parse(managerData.get("ChairList"));
@@ -126,21 +122,17 @@ function isMyChairExpired(npc, managerNpc){
     
     var myChair = chairsList[myChairIndex];
     
-    // Check if:
-    // 1. Chair is no longer taken (freed by manager), OR
-    // 2. Chair is taken but by someone else (shouldn't happen but just in case)
     var myId = getMyId(npc);
     if(!myChair.taken){
-        return true; // Chair was freed
+        return true;
     }
     if(myChair.occupiedBy && myChair.occupiedBy !== myId){
-        return true; // Someone else took it (shouldn't happen)
+        return true;
     }
     
     return false;
 }
 
-// Check if manager signaled job stop
 function isJobStopped(managerNpc){
     if(!managerNpc) return false;
     
@@ -149,6 +141,32 @@ function isJobStopped(managerNpc){
         return managerData.get("JobStopped") === "true";
     }
     return false;
+}
+
+// Find price for a given food item
+function findPriceForItem(itemNbtString) {
+    if (!pricingData || Object.keys(pricingData).length === 0) return [];
+    
+    var prices = [];
+    
+    for (var pageKey in pricingData) {
+        var pageData = pricingData[pageKey];
+        if (!Array.isArray(pageData)) continue;
+        
+        for (var i = 0; i < pageData.length; i += 3) {
+            var foodItem = pageData[i];
+            var price1 = pageData[i + 1];
+            var price2 = pageData[i + 2];
+            
+            if (foodItem && foodItem === itemNbtString) {
+                if (price1) prices.push(price1);
+                if (price2) prices.push(price2);
+                return prices;
+            }
+        }
+    }
+    
+    return prices;
 }
 
 function tick(event){
@@ -161,7 +179,6 @@ function tick(event){
         initialized = true;
     }
 
-    // Find manager
     var nearby = world.getNearbyEntities(npc.getX(), npc.getY(), npc.getZ(), scanRadius, 2);
     var managerNpc = null;
     
@@ -182,6 +199,14 @@ function tick(event){
             if(data.has("CounterPos")){
                 counterPos = parseCoords(data.get("CounterPos"));
             }
+            
+            if(data.has("PricingData")){
+                try{
+                    pricingData = JSON.parse(data.get("PricingData"));
+                }catch(e){
+                    pricingData = {};
+                }
+            }
 
             managerNpc = other;
             managerFound = true;
@@ -189,25 +214,22 @@ function tick(event){
         }
     }
 
-    // Check if job was stopped by manager
     if(managerNpc && isJobStopped(managerNpc)){
         returningToSpawn = true;
         assignedChair = null;
         chairReached = false;
     }
 
-    // Check GUI closed
     if(orderPlaced && !guiClosed && !assignedChair){
         try{
             var selfData = npc.getStoreddata();
             if(selfData.has("GuiClosed") && selfData.get("GuiClosed") === "true"){
                 guiClosed = true;
-                selfData.put("GuiClosed", "false"); // Clear it
+                selfData.put("GuiClosed", "false");
             }
         }catch(e){}
     }
 
-    // Check if our chair time expired
     if(assignedChair && chairReached && isMyChairExpired(npc, managerNpc)){
         returningToSpawn = true;
         assignedChair = null;
@@ -215,7 +237,22 @@ function tick(event){
         myChairIndex = -1;
     }
 
-    // Return to spawn
+    // Check if payment was received
+    if(assignedChair && chairReached && !paymentReceived){
+        paymentCheckTicks++;
+        try{
+            var selfData = npc.getStoreddata();
+            if(selfData.has("PaymentReceived") && selfData.get("PaymentReceived") === "true"){
+                paymentReceived = true;
+                selfData.put("PaymentReceived", "false");
+                
+                // Wait a bit then leave
+                returningToSpawn = true;
+                npc.say("Thank you!");
+            }
+        }catch(e){}
+    }
+
     if(returningToSpawn){
         if(spawnPos){
             var dx = npc.getX() - spawnPos.x;
@@ -234,12 +271,10 @@ function tick(event){
         return;
     }
 
-    // Wait at chair
     if(chairReached){
         return;
     }
 
-    // Navigate to chair
     if(assignedChair){
         var ddx = npc.getX() - assignedChair.x;
         var ddy = npc.getY() - assignedChair.y;
@@ -254,19 +289,16 @@ function tick(event){
         return;
     }
 
-    // Try to claim chair after GUI closed
     if(orderPlaced && guiClosed && !assignedChair && managerNpc){
         var claimed = tryClaimChair(npc, managerNpc);
         if(claimed){
-            guiClosed = false; // Don't try again
+            guiClosed = false;
         } else {
-            // No chairs available - show message and wait
             npc.say("No chairs available, waiting at counter.");
-            guiClosed = false; // Reset so player can try again by clicking
+            guiClosed = false;
         }
     }
 
-    // Walk to counter and order
     if(managerFound && counterPos && !orderPlaced){
         npc.navigateTo(counterPos.x, counterPos.y, counterPos.z, navigationSpeed);
 
@@ -279,6 +311,7 @@ function tick(event){
 
             if(menuItems.length > 0){
                 orderedItems = [];
+                orderedPrices = [];
                 var orderCount = 1 + Math.floor(Math.random() * 3);
                 for(var k=0; k<orderCount; k++){
                     var idx = Math.floor(Math.random() * menuItems.length);
@@ -291,6 +324,10 @@ function tick(event){
                     }
                     var item = world.createItemFromNbt(nbt);
                     orderedItems.push(item);
+                    
+                    // Find prices for this item
+                    var itemPrices = findPriceForItem(entry);
+                    orderedPrices.push(itemPrices);
                 }
             }
         }
@@ -306,15 +343,43 @@ function interact(event){
         player.message("This customer hasn't ordered yet.");
         return;
     }
+    
+    // Check if payment already received
+    if(paymentReceived){
+        player.message("This customer has already paid.");
+        return;
+    }
 
-    var gui = api.createCustomGui(102, 120, 0, true, player);
+    var gui = api.createCustomGui(102, 180, 0, true, player);
     gui.addLabel(1, "Customer wants:", 10, 10, 150, 12);
 
-    var slotX = 30;
-    for(var i=0; i<3; i++){
-        var slot = gui.addItemSlot(slotX + i*22, 35);
+    var slotX = 10;
+    var currentY = 35;
+    
+    for(var i=0; i<orderedItems.length && i<3; i++){
+        var slot = gui.addItemSlot(slotX, currentY);
         if(orderedItems[i]){
             slot.setStack(orderedItems[i]);
+        }
+        currentY += 25;
+    }
+    
+    // Add payment section
+    gui.addLabel(2, "Total Payment:", 10, currentY + 10, 150, 12);
+    currentY += 30;
+    
+    var paymentSlotX = 10;
+    var paymentSlotCount = 0;
+    
+    for(var i=0; i<orderedPrices.length; i++){
+        var priceArray = orderedPrices[i];
+        for(var j=0; j<priceArray.length && paymentSlotCount < 6; j++){
+            try {
+                var priceItem = player.world.createItemFromNbt(api.stringToNbt(priceArray[j]));
+                var pSlot = gui.addItemSlot(paymentSlotX + (paymentSlotCount % 3) * 25, currentY + Math.floor(paymentSlotCount / 3) * 25);
+                pSlot.setStack(priceItem);
+                paymentSlotCount++;
+            } catch(e) {}
         }
     }
 
@@ -327,5 +392,108 @@ function customGuiClosed(event){
         if(event.npc){
             event.npc.getStoreddata().put("GuiClosed", "true");
         }
+        
+        // Check if player provided all ordered items and payment
+        var player = event.player;
+        var npc = event.npc;
+        if(!player || !npc || orderedItems.length === 0) return;
+        
+        var inv = player.getInventory().getItems();
+        
+        // Check if player has all ordered food items
+        var hasAllFood = true;
+        for(var i=0; i<orderedItems.length; i++){
+            var needed = orderedItems[i];
+            if(!needed || needed.isEmpty()) continue;
+            
+            var foundCount = 0;
+            for(var j=0; j<inv.length; j++){
+                var invItem = inv[j];
+                if(invItem && invItem.getName() === needed.getName()){
+                    foundCount += invItem.getStackSize();
+                }
+            }
+            
+            if(foundCount < needed.getStackSize()){
+                hasAllFood = false;
+                break;
+            }
+        }
+        
+        if(!hasAllFood){
+            return; // Don't process payment if food not delivered
+        }
+        
+        // Check if player has all payment items
+        var hasAllPayment = true;
+        var paymentNeeded = {};
+        
+        for(var i=0; i<orderedPrices.length; i++){
+            var priceArray = orderedPrices[i];
+            for(var j=0; j<priceArray.length; j++){
+                try {
+                    var priceItem = player.world.createItemFromNbt(event.API.stringToNbt(priceArray[j]));
+                    var itemName = priceItem.getName();
+                    var itemCount = priceItem.getStackSize();
+                    
+                    if(!paymentNeeded[itemName]){
+                        paymentNeeded[itemName] = 0;
+                    }
+                    paymentNeeded[itemName] += itemCount;
+                } catch(e) {}
+            }
+        }
+        
+        for(var itemName in paymentNeeded){
+            var needed = paymentNeeded[itemName];
+            var foundCount = 0;
+            
+            for(var j=0; j<inv.length; j++){
+                var invItem = inv[j];
+                if(invItem && invItem.getName() === itemName){
+                    foundCount += invItem.getStackSize();
+                }
+            }
+            
+            if(foundCount < needed){
+                hasAllPayment = false;
+                break;
+            }
+        }
+        
+        if(!hasAllFood || !hasAllPayment){
+            return;
+        }
+        
+        // Remove food items from player
+        for(var i=0; i<orderedItems.length; i++){
+            var needed = orderedItems[i];
+            if(!needed || needed.isEmpty()) continue;
+            
+            var toRemove = needed.getStackSize();
+            for(var j=0; j<inv.length && toRemove > 0; j++){
+                var invItem = inv[j];
+                if(invItem && invItem.getName() === needed.getName()){
+                    var removeAmt = Math.min(toRemove, invItem.getStackSize());
+                    invItem.setStackSize(invItem.getStackSize() - removeAmt);
+                    toRemove -= removeAmt;
+                }
+            }
+        }
+        
+        // Give payment to player
+        for(var i=0; i<orderedPrices.length; i++){
+            var priceArray = orderedPrices[i];
+            for(var j=0; j<priceArray.length; j++){
+                try {
+                    var paymentItem = player.world.createItemFromNbt(event.API.stringToNbt(priceArray[j]));
+                    player.giveItem(paymentItem);
+                } catch(e) {}
+            }
+        }
+        
+        npc.getStoreddata().put("PaymentReceived", "true");
+        player.message("§aTransaction complete!");
+        
     }catch(e){}
 }
