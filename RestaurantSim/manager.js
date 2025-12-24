@@ -28,18 +28,18 @@ var pricingRowSpacing = 20.5;
 var pricingColSpacing = 79;
 var pricingNumRows = 10;
 var pricingNumCols = 5;
-var price1OffsetX = 44;  // Food item on LEFT
-var price2OffsetX = 0;   // Price 1 on RIGHT
-var price3OffsetX = 18;  // Price 2 on RIGHT
+var foodItemOffsetX = 0;   // Food item on LEFT
+var price1OffsetX = 26;    // Price 1 on RIGHT
+var price2OffsetX = 44;    // Price 2 on RIGHT (further right)
 
 // Build pricing layout
 for (var col = 0; col < pricingNumCols; col++) {
     var colOffsetX = pricingStartX + col * pricingColSpacing;
     for (var row = 0; row < pricingNumRows; row++) {
         var y = pricingStartY + row * pricingRowSpacing;
-        pricingSlotPositions.push({x: colOffsetX + price1OffsetX, y: y});  // Food item
-        pricingSlotPositions.push({x: colOffsetX + price2OffsetX, y: y});  // Price 1
-        pricingSlotPositions.push({x: colOffsetX + price3OffsetX, y: y});  // Price 2
+        pricingSlotPositions.push({x: colOffsetX + foodItemOffsetX, y: y});  // Food item
+        pricingSlotPositions.push({x: colOffsetX + price1OffsetX, y: y});    // Price 1
+        pricingSlotPositions.push({x: colOffsetX + price2OffsetX, y: y});    // Price 2
     }
 }
 
@@ -69,7 +69,7 @@ var pricingHighlightLines = [];
 var viewMode = "menu"; // "menu" or "pricing"
 
 // Job/chairs runtime
-var CHAIR_FREE_TICKS = 600;
+var CHAIR_FREE_TICKS = 20;
 var managerJobActive = false;
 var jobTicks = 0;
 var chairsList = [];
