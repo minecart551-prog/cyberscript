@@ -355,9 +355,29 @@ function spawnCustomerCloneAtManager(player) {
     }
 }
 
+// Signal all customers to return and despawn
+function signalAllCustomersToLeave(npc) {
+    npc.getStoreddata().put("JobStopped", "true");
+}
+
 function customGuiButton(event) {
     var player = event.player;
     if (event.buttonId === ID_START_JOB_BUTTON) {
+        // Check if job is already running
+        if (managerJobActive) {
+            player.message("A job is currently running, stop it first.");
+            return;
+        }
+        
+        // Also check stored data in case script reloaded
+        var storedActive = lastNpc.getStoreddata().has("ManagerJobActive") && 
+                          lastNpc.getStoreddata().get("ManagerJobActive") === "true";
+        if (storedActive) {
+            player.message("A job is currently running, stop it first.");
+            managerJobActive = true; // Sync the variable
+            return;
+        }
+        
         player.getStoreddata().put("RestaurantJobActive", "true");
         player.message("Job started");
         saveNpcMenuItems(lastNpc, player);
@@ -384,6 +404,7 @@ function customGuiButton(event) {
         managerJobActive = true;
         jobTicks = 0;
         lastNpc.getStoreddata().put("ManagerJobActive", "true");
+        lastNpc.getStoreddata().put("JobStopped", "false");
 
         resetChairRuntime(lastNpc);
         spawnCustomerCloneAtManager(player);
@@ -393,6 +414,9 @@ function customGuiButton(event) {
         player.message("Job stopped");
         managerJobActive = false;
         lastNpc.getStoreddata().put("ManagerJobActive", "false");
+
+        // Signal all customers to leave
+        signalAllCustomersToLeave(lastNpc);
 
         chairsList = loadChairList(lastNpc);
         for (var i = 0; i < chairsList.length; i++) {
