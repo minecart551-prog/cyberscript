@@ -215,30 +215,29 @@ function openAdminMenuGui(player, api) {
     buildSlotPositions();
     storedSlotItems = loadNpcMenuItems(lastNpc);
     
-    // Create GUI first
-    var gui = api.createCustomGui(176, 166, 0, true, player);
-    guiRef = gui; // Store reference
+    // Create GUI first and store reference immediately
+    guiRef = api.createCustomGui(176, 166, 0, true, player);
 
-    gui.addLabel(ID_JOB_LABEL, "Admin Menu Setup", 11, -110, 156, 12).setColor(0xFFFFFF);
+    guiRef.addLabel(ID_JOB_LABEL, "Admin Menu Setup", 11, -110, 156, 12).setColor(0xFFFFFF);
 
     var npcData = lastNpc.getStoreddata();
     var spawnText = npcData.has("CustomerSpawn") ? npcData.get("CustomerSpawn") : "";
     var counterText = npcData.has("CounterPos") ? npcData.get("CounterPos") : "";
     var chairsText = npcData.has("ChairListText") ? npcData.get("ChairListText") : "";
 
-    gui.addLabel(ID_LABEL_SPAWN, "Customer Spawn (x y z)", 10, 10, 156, 12);
-    gui.addTextField(ID_FIELD_SPAWN, 10, 25, 156, 18).setText(spawnText);
-    gui.addLabel(ID_LABEL_COUNTER, "Counter Position (x y z)", 10, 50, 156, 12);
-    gui.addTextField(ID_FIELD_COUNTER, 10, 65, 156, 18).setText(counterText);
-    gui.addLabel(ID_LABEL_CHAIRS, "Chairs (x y z, x y z, ...)", 10, 90, 156, 12);
-    gui.addTextField(ID_FIELD_CHAIRS, 10, 105, 156, 18).setText(chairsText);
+    guiRef.addLabel(ID_LABEL_SPAWN, "Customer Spawn (x y z)", 10, 10, 156, 12);
+    guiRef.addTextField(ID_FIELD_SPAWN, 10, 25, 156, 18).setText(spawnText);
+    guiRef.addLabel(ID_LABEL_COUNTER, "Counter Position (x y z)", 10, 50, 156, 12);
+    guiRef.addTextField(ID_FIELD_COUNTER, 10, 65, 156, 18).setText(counterText);
+    guiRef.addLabel(ID_LABEL_CHAIRS, "Chairs (x y z, x y z, ...)", 10, 90, 156, 12);
+    guiRef.addTextField(ID_FIELD_CHAIRS, 10, 105, 156, 18).setText(chairsText);
 
-    gui.addButton(ID_PRICING_SETUP_BUTTON, "Pricing Setup", 200, 10, 80, 20);
+    guiRef.addButton(ID_PRICING_SETUP_BUTTON, "Pricing Setup", 200, 10, 80, 20);
 
     mySlots = [];
     for (var i = 0; i < slotPositions.length; i++) {
         var pos = slotPositions[i];
-        var slot = gui.addItemSlot(pos.x, pos.y);
+        var slot = guiRef.addItemSlot(pos.x, pos.y);
         if (storedSlotItems[i]) {
             try {
                 var dummy = player.world.createItem(stackFromName(storedSlotItems[i]), 1);
@@ -248,8 +247,8 @@ function openAdminMenuGui(player, api) {
         mySlots.push(slot);
     }
 
-    gui.showPlayerInventory(10, 130, false);
-    player.showCustomGui(gui);
+    guiRef.showPlayerInventory(10, 130, false);
+    player.showCustomGui(guiRef);
 }
 
 function openPlayerGui(player, api) {
@@ -322,22 +321,22 @@ function openPricingGui(player, api) {
         storedPricingItems[currentPricingPage] = makeNullArray(pricingSlotPositions.length);
     }
     
+    // Clear previous highlights
     pricingHighlightedSlot = null;
     pricingHighlightLines = [];
     
-    // Create GUI first
-    var gui = api.createCustomGui(176, 166, 0, true, player);
-    guiRef = gui; // Store reference
+    // Create GUI first and store reference immediately
+    guiRef = api.createCustomGui(176, 166, 0, true, player);
     
-    gui.addLabel(ID_JOB_LABEL, "Menu Pricing Setup - Page " + (currentPricingPage + 1), 11, -110, 200, 12).setColor(0xFFFFFF);
+    guiRef.addLabel(ID_JOB_LABEL, "Menu Pricing Setup - Page " + (currentPricingPage + 1), 11, -110, 200, 12).setColor(0xFFFFFF);
     
-    gui.addButton(ID_NEXT_PAGE_BUTTON, "Next", 284, -30, 35, 19);
-    gui.addButton(ID_PREV_PAGE_BUTTON, "Back", -153, -30, 35, 19);
-    gui.addButton(ID_CREATE_PAGE_BUTTON, "Create", 284, -60, 35, 19);
-    gui.addButton(ID_MENU_SETUP_BUTTON, "Menu Setup", 200, 10, 80, 20);
+    guiRef.addButton(ID_NEXT_PAGE_BUTTON, "Next", 284, -30, 35, 19);
+    guiRef.addButton(ID_PREV_PAGE_BUTTON, "Back", -153, -30, 35, 19);
+    guiRef.addButton(ID_CREATE_PAGE_BUTTON, "Create", 284, -60, 35, 19);
+    guiRef.addButton(ID_MENU_SETUP_BUTTON, "Menu Setup", 200, 10, 80, 20);
     
     pricingSlots = pricingSlotPositions.map(function(pos) {
-        return gui.addItemSlot(pos.x, pos.y);
+        return guiRef.addItemSlot(pos.x, pos.y);
     });
     
     for (var i = 0; i < pricingSlots.length; i++) {
@@ -350,8 +349,8 @@ function openPricingGui(player, api) {
         }
     }
     
-    gui.showPlayerInventory(0, 91, false);
-    player.showCustomGui(gui);
+    guiRef.showPlayerInventory(0, 91, false);
+    player.showCustomGui(guiRef);
 }
 
 function savePricingPageItems() {
@@ -366,40 +365,40 @@ function savePricingPageItems() {
     npcData.put("PricingItems", JSON.stringify(storedPricingItems));
 }
 
-function drawPricingHighlight(x, y) {
-    if (!guiRef) return;
+function drawPricingHighlight(gui, x, y) {
+    if (!gui) return;
+    
     var w = 18, h = 18;
-    pricingHighlightLines = [
-        guiRef.addColoredLine(5001, x, y, x + w, y, 0xADD8E6, 2),
-        guiRef.addColoredLine(5002, x, y + h, x + w, y + h, 0xADD8E6, 2),
-        guiRef.addColoredLine(5003, x, y, x, y + h, 0xADD8E6, 2),
-        guiRef.addColoredLine(5004, x + w, y, x + w, y + h, 0xADD8E6, 2)
-    ];
+    gui.addColoredLine(5001, x, y, x + w, y, 0xADD8E6, 2);
+    gui.addColoredLine(5002, x, y + h, x + w, y + h, 0xADD8E6, 2);
+    gui.addColoredLine(5003, x, y, x, y + h, 0xADD8E6, 2);
+    gui.addColoredLine(5004, x + w, y, x + w, y + h, 0xADD8E6, 2);
+    pricingHighlightLines = [5001, 5002, 5003, 5004];
 }
 
-function clearPricingHighlight() {
-    if (!guiRef) return;
+function clearPricingHighlight(gui) {
+    if (!gui) return;
     pricingHighlightLines.forEach(function(id) {
-        try { guiRef.removeComponent(id); } catch(e) {}
+        try { gui.removeComponent(id); } catch(e) {}
     });
     pricingHighlightLines = [];
 }
 
-function drawAdminHighlight(x, y) {
-    if (!guiRef) return;
+function drawAdminHighlight(gui, x, y) {
+    if (!gui) return;
+    
     var w = 18, h = 18;
-    adminHighlightLines = [
-        guiRef.addColoredLine(1, x, y, x + w, y, 0xADD8E6, 2),
-        guiRef.addColoredLine(2, x, y + h, x + w, y + h, 0xADD8E6, 2),
-        guiRef.addColoredLine(3, x, y, x, y + h, 0xADD8E6, 2),
-        guiRef.addColoredLine(4, x + w, y, x + w, y + h, 0xADD8E6, 2)
-    ];
+    gui.addColoredLine(1, x, y, x + w, y, 0xADD8E6, 2);
+    gui.addColoredLine(2, x, y + h, x + w, y + h, 0xADD8E6, 2);
+    gui.addColoredLine(3, x, y, x, y + h, 0xADD8E6, 2);
+    gui.addColoredLine(4, x + w, y, x + w, y + h, 0xADD8E6, 2);
+    adminHighlightLines = [1, 2, 3, 4];
 }
 
-function clearAdminHighlight() {
-    if (!guiRef) return;
+function clearAdminHighlight(gui) {
+    if (!gui) return;
     adminHighlightLines.forEach(function(id) {
-        try { guiRef.removeComponent(id); } catch(e) {}
+        try { gui.removeComponent(id); } catch(e) {}
     });
     adminHighlightLines = [];
 }
@@ -485,6 +484,7 @@ function customGuiSlotClicked(event) {
     var clickedSlot = event.slot;
     var stack = event.stack;
     var player = event.player;
+    var gui = event.gui;  // Get GUI from event
     
     if (viewMode === "pricing") {
         // Pricing mode slot handling
@@ -492,11 +492,11 @@ function customGuiSlotClicked(event) {
         
         if (slotIndex !== -1) {
             // Clicking a pricing slot - highlight it
+            clearPricingHighlight(gui);
             pricingHighlightedSlot = clickedSlot;
-            clearPricingHighlight();
             var pos = pricingSlotPositions[slotIndex];
-            drawPricingHighlight(pos.x, pos.y);
-            if (guiRef) guiRef.update();
+            drawPricingHighlight(gui, pos.x, pos.y);
+            if (gui) gui.update();
             return;
         }
         
@@ -508,7 +508,7 @@ function customGuiSlotClicked(event) {
             var currentStack = pricingHighlightedSlot.getStack();
             if (currentStack && !currentStack.isEmpty()) {
                 pricingHighlightedSlot.setStack(player.world.createItem("minecraft:air", 1));
-                if (guiRef) guiRef.update();
+                if (gui) gui.update();
             }
             return;
         }
@@ -518,7 +518,7 @@ function customGuiSlotClicked(event) {
             var itemCopy = player.world.createItemFromNbt(stack.getItemNbt());
             itemCopy.setStackSize(stack.getStackSize());
             pricingHighlightedSlot.setStack(itemCopy);
-            if (guiRef) guiRef.update();
+            if (gui) gui.update();
         } catch(e) {}
         return;
         
@@ -529,11 +529,11 @@ function customGuiSlotClicked(event) {
         if (isAdminGui) {
             if (index !== -1) {
                 // Clicking a menu slot - highlight it
+                clearAdminHighlight(gui);
                 highlightedAdminSlot = clickedSlot;
-                clearAdminHighlight();
                 var pos = slotPositions[index];
-                drawAdminHighlight(pos.x, pos.y);
-                if (guiRef) guiRef.update();
+                drawAdminHighlight(gui, pos.x, pos.y);
+                if (gui) gui.update();
                 return;
             }
             
@@ -545,7 +545,7 @@ function customGuiSlotClicked(event) {
                 var currentStack = highlightedAdminSlot.getStack();
                 if (currentStack && !currentStack.isEmpty()) {
                     highlightedAdminSlot.setStack(player.world.createItem("minecraft:air", 1));
-                    if (guiRef) guiRef.update();
+                    if (gui) gui.update();
                 }
                 return;
             }
@@ -555,7 +555,7 @@ function customGuiSlotClicked(event) {
                 var itemCopy = player.world.createItemFromNbt(stack.getItemNbt());
                 itemCopy.setStackSize(stack.getStackSize());
                 highlightedAdminSlot.setStack(itemCopy);
-                if (guiRef) guiRef.update();
+                if (gui) gui.update();
             } catch(e) {}
             return;
         }
