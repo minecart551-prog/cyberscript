@@ -457,11 +457,11 @@ function interact(event){
     
     if(!heldItem || heldItem.isEmpty()){
         var gui = api.createCustomGui(102, 180, 0, true, player);
-        var label = gui.addLabel(1, "Customer wants:", 10, 10, 150, 12);
+        var label = gui.addLabel(1, "Customer wants:", 46, -50, 150, 12);
         label.setColor(0xFFFFFF);
 
-        var currentX = 10;
-        var slotY = 35;
+        var currentX = 52;
+        var slotY = -23;
         
         for(var i=0; i<orderedItems.length && i<3; i++){
             var slot = gui.addItemSlot(currentX, slotY);
