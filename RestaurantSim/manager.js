@@ -1,6 +1,7 @@
 var ID_JOB_LABEL = 10;
 var ID_START_JOB_BUTTON = 11;
 var ID_STOP_JOB_BUTTON = 12;
+var ID_CLEAR_MENU_BUTTON = 13;
 var ID_LABEL_SPAWN = 20;
 var ID_LABEL_COUNTER = 21;
 var ID_FIELD_SPAWN = 22;
@@ -25,17 +26,17 @@ var pricingRowSpacing = 20.5;
 var pricingColSpacing = 79;
 var pricingNumRows = 10;
 var pricingNumCols = 5;
-var foodItemOffsetX = 0;   // Food item on LEFT
-var price1OffsetX = 24;    // Price 1 on RIGHT
-var price2OffsetX = 42;    // Price 2 on RIGHT (further right)
+var foodItemOffsetX = 0;
+var price1OffsetX = 24;
+var price2OffsetX = 42;
 
 for (var col = 0; col < pricingNumCols; col++) {
     var colOffsetX = pricingStartX + col * pricingColSpacing;
     for (var row = 0; row < pricingNumRows; row++) {
         var y = pricingStartY + row * pricingRowSpacing;
-        pricingSlotPositions.push({x: colOffsetX + foodItemOffsetX, y: y});  // Food item
-        pricingSlotPositions.push({x: colOffsetX + price1OffsetX, y: y});    // Price 1
-        pricingSlotPositions.push({x: colOffsetX + price2OffsetX, y: y});    // Price 2
+        pricingSlotPositions.push({x: colOffsetX + foodItemOffsetX, y: y});
+        pricingSlotPositions.push({x: colOffsetX + price1OffsetX, y: y});
+        pricingSlotPositions.push({x: colOffsetX + price2OffsetX, y: y});
     }
 }
 
@@ -59,7 +60,7 @@ var pricingSlots = [];
 var pricingHighlightedSlot = null;
 var pricingHighlightLines = [];
 
-var viewMode = "menu"; // "menu" or "pricing"
+var viewMode = "menu";
 
 var CHAIR_FREE_TICKS = 600;
 var managerJobActive = false;
@@ -274,6 +275,7 @@ function renderPlayerGui(player, api) {
 
     guiRef.addButton(ID_START_JOB_BUTTON, "Start Job", 10, 80, 70, 20);
     guiRef.addButton(ID_STOP_JOB_BUTTON, "Stop Job", 90, 80, 70, 20);
+    guiRef.addButton(ID_CLEAR_MENU_BUTTON, "Clear Menu", 45, 40, 80, 20);
 
     player.showCustomGui(guiRef);
 }
@@ -471,7 +473,7 @@ function customGuiSlotClicked(event) {
     var clickedSlot = event.slot;
     var stack = event.stack;
     var player = event.player;
-    var gui = event.gui;  // Get GUI from event
+    var gui = event.gui;
     
     if (viewMode === "pricing") {
         var slotIndex = pricingSlots.indexOf(clickedSlot);
@@ -603,6 +605,15 @@ function customGuiButton(event) {
                 currentPricingPage = newPage;
                 openPricingGui(player, api);
             }
+        }
+        return;
+    }
+    
+    if (event.buttonId === ID_CLEAR_MENU_BUTTON) {
+        if (viewMode === "menu" && !isAdminGui) {
+            selectedSlots = [];
+            player.getStoreddata().put("SelectedMenuSlots", JSON.stringify(selectedSlots));
+            renderPlayerGui(player, api);
         }
         return;
     }
