@@ -14,20 +14,20 @@ var ID_MENU_SETUP_BUTTON = 33;
 var ID_PRICING_SETUP_BUTTON = 34;
 
 var SECTIONS = [
-    { name: "Drinks", startX: -150, startY: -60, rows: 6, columns: 4, slotSpacingX: 20, slotSpacingY: 20 },
-    { name: "Food", startX: 200, startY: -60, rows: 6, columns: 4, slotSpacingX: 20, slotSpacingY: 20 }
+    { name: "Drinks", startX: -120, startY: -60, rows: 6, columns: 4, slotSpacingX: 20, slotSpacingY: 20 },
+    { name: "Food", startX: 205, startY: -60, rows: 6, columns: 4, slotSpacingX: 20, slotSpacingY: 20 }
 ];
 
 var pricingSlotPositions = [];
 var pricingStartX = -105;
-var pricingStartY = -120;
+var pricingStartY = -116;
 var pricingRowSpacing = 20.5;
 var pricingColSpacing = 79;
 var pricingNumRows = 10;
 var pricingNumCols = 5;
 var foodItemOffsetX = 0;   // Food item on LEFT
-var price1OffsetX = 26;    // Price 1 on RIGHT
-var price2OffsetX = 44;    // Price 2 on RIGHT (further right)
+var price1OffsetX = 24;    // Price 1 on RIGHT
+var price2OffsetX = 42;    // Price 2 on RIGHT (further right)
 
 for (var col = 0; col < pricingNumCols; col++) {
     var colOffsetX = pricingStartX + col * pricingColSpacing;
@@ -206,21 +206,21 @@ function openAdminMenuGui(player, api) {
     
     guiRef = api.createCustomGui(176, 166, 0, true, player);
 
-    guiRef.addLabel(ID_JOB_LABEL, "Admin Menu Setup", 11, -110, 156, 12).setColor(0xFFFFFF);
+    guiRef.addLabel(ID_JOB_LABEL, "Admin Menu Setup", 35, -110, 156, 12).setColor(0xFFFFFF);
 
     var npcData = lastNpc.getStoreddata();
     var spawnText = npcData.has("CustomerSpawn") ? npcData.get("CustomerSpawn") : "";
     var counterText = npcData.has("CounterPos") ? npcData.get("CounterPos") : "";
     var chairsText = npcData.has("ChairListText") ? npcData.get("ChairListText") : "";
 
-    guiRef.addLabel(ID_LABEL_SPAWN, "Customer Spawn (x y z)", 10, 10, 156, 12);
-    guiRef.addTextField(ID_FIELD_SPAWN, 10, 25, 156, 18).setText(spawnText);
-    guiRef.addLabel(ID_LABEL_COUNTER, "Counter Position (x y z)", 10, 50, 156, 12);
-    guiRef.addTextField(ID_FIELD_COUNTER, 10, 65, 156, 18).setText(counterText);
-    guiRef.addLabel(ID_LABEL_CHAIRS, "Chairs (x y z, x y z, ...)", 10, 90, 156, 12);
-    guiRef.addTextField(ID_FIELD_CHAIRS, 10, 105, 156, 18).setText(chairsText);
+    guiRef.addLabel(ID_LABEL_SPAWN, "Customer Spawn (x y z)", 5, -62, 156, 16).setColor(0xFFFFFF);
+    guiRef.addTextField(ID_FIELD_SPAWN, 5, -49, 156, 18).setText(spawnText);
+    guiRef.addLabel(ID_LABEL_COUNTER, "Counter Position (x y z)", 5, -22, 156, 16).setColor(0xFFFFFF);
+    guiRef.addTextField(ID_FIELD_COUNTER, 5, -9, 156, 18).setText(counterText);
+    guiRef.addLabel(ID_LABEL_CHAIRS, "Chairs (x y z, x y z, ...)", 5, 18, 156, 16).setColor(0xFFFFFF);
+    guiRef.addTextField(ID_FIELD_CHAIRS, 5, 33, 156, 18).setText(chairsText).setColor(0xFFFFFF);
 
-    guiRef.addButton(ID_PRICING_SETUP_BUTTON, "Pricing Setup", 200, 10, 80, 20);
+    guiRef.addButton(ID_PRICING_SETUP_BUTTON, "Pricing Setup", 202, 70, 80, 20);
 
     mySlots = [];
     for (var i = 0; i < slotPositions.length; i++) {
@@ -235,7 +235,7 @@ function openAdminMenuGui(player, api) {
         mySlots.push(slot);
     }
 
-    guiRef.showPlayerInventory(10, 130, false);
+    guiRef.showPlayerInventory(3, 80, false);
     player.showCustomGui(guiRef);
 }
 
@@ -250,7 +250,7 @@ function openPlayerGui(player, api) {
 
 function renderPlayerGui(player, api) {
     guiRef = api.createCustomGui(176, 166, 0, true, player);
-    guiRef.addLabel(ID_JOB_LABEL, "Restaurant Menu", 10, -110, 156, 12).setColor(0xFFFFFF);
+    guiRef.addLabel(ID_JOB_LABEL, "Restaurant Menu", 40, -110, 156, 12).setColor(0xFFFFFF);
 
     mySlots = [];
     slotHighlights = {};
@@ -272,8 +272,8 @@ function renderPlayerGui(player, api) {
         if (idx >= 0 && idx < mySlots.length) drawHighlight(idx);
     });
 
-    guiRef.addButton(ID_START_JOB_BUTTON, "Start Job", 10, 90, 70, 20);
-    guiRef.addButton(ID_STOP_JOB_BUTTON, "Stop Job", 90, 90, 70, 20);
+    guiRef.addButton(ID_START_JOB_BUTTON, "Start Job", 10, 80, 70, 20);
+    guiRef.addButton(ID_STOP_JOB_BUTTON, "Stop Job", 90, 80, 70, 20);
 
     player.showCustomGui(guiRef);
 }
@@ -313,12 +313,12 @@ function openPricingGui(player, api) {
     
     guiRef = api.createCustomGui(176, 166, 0, true, player);
     
-    guiRef.addLabel(ID_JOB_LABEL, "Menu Pricing Setup - Page " + (currentPricingPage + 1), 11, -110, 200, 12).setColor(0xFFFFFF);
+    guiRef.addLabel(ID_JOB_LABEL, "Menu Pricing Setup - Page " + (currentPricingPage + 1), 11, -129, 200, 12).setColor(0xFFFFFF);
     
     guiRef.addButton(ID_NEXT_PAGE_BUTTON, "Next", 284, -30, 35, 19);
     guiRef.addButton(ID_PREV_PAGE_BUTTON, "Back", -153, -30, 35, 19);
     guiRef.addButton(ID_CREATE_PAGE_BUTTON, "Create", 284, -60, 35, 19);
-    guiRef.addButton(ID_MENU_SETUP_BUTTON, "Menu Setup", 200, 10, 80, 20);
+    guiRef.addButton(ID_MENU_SETUP_BUTTON, "<< Menu Setup", 190, 90, 80, 20);
     
     pricingSlots = pricingSlotPositions.map(function(pos) {
         return guiRef.addItemSlot(pos.x, pos.y);
@@ -334,7 +334,7 @@ function openPricingGui(player, api) {
         }
     }
     
-    guiRef.showPlayerInventory(0, 91, false);
+    guiRef.showPlayerInventory(0, 93, false);
     player.showCustomGui(guiRef);
 }
 
