@@ -17,6 +17,8 @@ var myChairIndex = -1;
 var pricingData = {};
 var paymentReceived = false;
 var paymentCheckTicks = 0;
+var hasSaidPrice = false; // Track if customer already said their price
+var pricingDataLoaded = false; // Track if we've loaded pricing data
 
 function parseCoords(str){
     if(!str) return null;
@@ -144,10 +146,24 @@ function isJobStopped(managerNpc){
 }
 
 // Find price for a given food item
-function findPriceForItem(itemNbtString) {
-    if (!pricingData || Object.keys(pricingData).length === 0) return [];
+function findPriceForItem(itemNbtString, api, world, npc) {
+    if (!pricingData || Object.keys(pricingData).length === 0) {
+        return [];
+    }
+    
+    // Get the food item to compare
+    var foodToMatch;
+    try {
+        foodToMatch = world.createItemFromNbt(api.stringToNbt(itemNbtString));
+    } catch(e) {
+        return [];
+    }
+    
+    var foodName = foodToMatch.getName();
+    npc.say("Looking for: " + foodName);
     
     var prices = [];
+    var checkedCount = 0;
     
     for (var pageKey in pricingData) {
         var pageData = pricingData[pageKey];
@@ -158,15 +174,63 @@ function findPriceForItem(itemNbtString) {
             var price1 = pageData[i + 1];
             var price2 = pageData[i + 2];
             
-            if (foodItem && foodItem === itemNbtString) {
-                if (price1) prices.push(price1);
-                if (price2) prices.push(price2);
-                return prices;
+            if (foodItem) {
+                try {
+                    var pricingFoodItem = world.createItemFromNbt(api.stringToNbt(foodItem));
+                    var pricingFoodName = pricingFoodItem.getName();
+                    
+                    checkedCount++;
+                    if(checkedCount <= 3) { // Only show first 3
+                        npc.say("Checking: " + pricingFoodName);
+                    }
+                    
+                    // Compare by item name
+                    if (pricingFoodName === foodName) {
+                        npc.say("MATCH FOUND!");
+                        if (price1) prices.push(price1);
+                        if (price2) prices.push(price2);
+                        return prices;
+                    }
+                } catch(e) {}
             }
         }
     }
     
+    npc.say("No match. Checked " + checkedCount + " items");
     return prices;
+}
+
+// Build a nice price string from payment items
+function buildPriceString(api, world) {
+    var priceMap = {}; // Map item names to total quantities
+    
+    for(var i = 0; i < orderedPrices.length; i++){
+        var priceArray = orderedPrices[i];
+        for(var j = 0; j < priceArray.length; j++){
+            try {
+                var priceItem = world.createItemFromNbt(api.stringToNbt(priceArray[j]));
+                var itemName = priceItem.getDisplayName();
+                var itemCount = priceItem.getStackSize();
+                
+                if(!priceMap[itemName]){
+                    priceMap[itemName] = 0;
+                }
+                priceMap[itemName] += itemCount;
+            } catch(e) {}
+        }
+    }
+    
+    var priceStrings = [];
+    for(var itemName in priceMap){
+        priceStrings.push(priceMap[itemName] + " " + itemName);
+    }
+    
+    if(priceStrings.length === 0) return "free";
+    if(priceStrings.length === 1) return priceStrings[0];
+    
+    // Join with "and" for the last item
+    var lastItem = priceStrings.pop();
+    return priceStrings.join(", ") + " and " + lastItem;
 }
 
 function tick(event){
@@ -177,6 +241,27 @@ function tick(event){
     if(!initialized){
         spawnPos = {x: npc.getX(), y: npc.getY(), z: npc.getZ()};
         initialized = true;
+    }
+    
+    // Load pricing data from own stored data (set by manager during spawn)
+    // Keep checking until we have it
+    var hasPricingData = pricingData && Object.keys(pricingData).length > 0;
+    
+    if(!pricingDataLoaded && !hasPricingData){
+        var selfData = npc.getStoreddata();
+        if(selfData.has("PricingData")){
+            try{
+                var rawData = selfData.get("PricingData");
+                pricingData = JSON.parse(rawData);
+                var pageCount = Object.keys(pricingData).length;
+                if(pageCount > 0){
+                    npc.say("Successfully loaded " + pageCount + " pricing pages!");
+                    pricingDataLoaded = true;
+                }
+            }catch(e){
+                pricingData = {};
+            }
+        }
     }
 
     var nearby = world.getNearbyEntities(npc.getX(), npc.getY(), npc.getZ(), scanRadius, 2);
@@ -198,14 +283,6 @@ function tick(event){
 
             if(data.has("CounterPos")){
                 counterPos = parseCoords(data.get("CounterPos"));
-            }
-            
-            if(data.has("PricingData")){
-                try{
-                    pricingData = JSON.parse(data.get("PricingData"));
-                }catch(e){
-                    pricingData = {};
-                }
             }
 
             managerNpc = other;
@@ -251,6 +328,13 @@ function tick(event){
                 npc.say("Thank you!");
             }
         }catch(e){}
+        
+        // Say the total price when seated
+        if(!hasSaidPrice && orderedPrices.length > 0){
+            var priceString = buildPriceString(api, world);
+            npc.say("Total price is " + priceString);
+            hasSaidPrice = true;
+        }
     }
 
     if(returningToSpawn){
@@ -312,6 +396,12 @@ function tick(event){
             if(menuItems.length > 0){
                 orderedItems = [];
                 orderedPrices = [];
+                
+                var hasPricing = pricingData && Object.keys(pricingData).length > 0;
+                if(!hasPricing){
+                    npc.say("Warning: No pricing data loaded yet!");
+                }
+                
                 var orderCount = 1 + Math.floor(Math.random() * 3);
                 for(var k=0; k<orderCount; k++){
                     var idx = Math.floor(Math.random() * menuItems.length);
@@ -326,7 +416,7 @@ function tick(event){
                     orderedItems.push(item);
                     
                     // Find prices for this item
-                    var itemPrices = findPriceForItem(entry);
+                    var itemPrices = findPriceForItem(entry, api, world, npc);
                     orderedPrices.push(itemPrices);
                 }
             }
@@ -362,25 +452,6 @@ function interact(event){
             slot.setStack(orderedItems[i]);
         }
         currentY += 25;
-    }
-    
-    // Add payment section
-    gui.addLabel(2, "Total Payment:", 10, currentY + 10, 150, 12);
-    currentY += 30;
-    
-    var paymentSlotX = 10;
-    var paymentSlotCount = 0;
-    
-    for(var i=0; i<orderedPrices.length; i++){
-        var priceArray = orderedPrices[i];
-        for(var j=0; j<priceArray.length && paymentSlotCount < 6; j++){
-            try {
-                var priceItem = player.world.createItemFromNbt(api.stringToNbt(priceArray[j]));
-                var pSlot = gui.addItemSlot(paymentSlotX + (paymentSlotCount % 3) * 25, currentY + Math.floor(paymentSlotCount / 3) * 25);
-                pSlot.setStack(priceItem);
-                paymentSlotCount++;
-            } catch(e) {}
-        }
     }
 
     player.showCustomGui(gui);
