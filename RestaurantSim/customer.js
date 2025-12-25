@@ -17,7 +17,6 @@ var myChairIndex = -1;
 var pricingData = {};
 var paymentReceived = false;
 var paymentCheckTicks = 0;
-var hasSaidPrice = false; // Track if customer already said their price
 var pricingDataLoaded = false; // Track if we've loaded pricing data
 
 function parseCoords(str){
@@ -329,12 +328,7 @@ function tick(event){
             }
         }catch(e){}
         
-        // Say the total price when seated
-        if(!hasSaidPrice && orderedPrices.length > 0){
-            var priceString = buildPriceString(api, world);
-            npc.say("Total price is " + priceString);
-            hasSaidPrice = true;
-        }
+
     }
 
     if(returningToSpawn){
