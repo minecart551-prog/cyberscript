@@ -69,16 +69,16 @@ var pricingHighlightLines = [];
 var viewMode = "menu"; // "menu" or "pricing"
 
 // Job/chairs runtime
-var CHAIR_FREE_TICKS = 20;
+var CHAIR_FREE_TICKS = 600;
 var managerJobActive = false;
 var jobTicks = 0;
 var chairsList = [];
 
 // Customer spawning config
 var MIN_CUSTOMERS = 1;
-var MAX_CUSTOMERS = 1;
-var MIN_SPAWN_INTERVAL = 200;
-var MAX_SPAWN_INTERVAL = 300;
+var MAX_CUSTOMERS = 6;
+var MIN_SPAWN_INTERVAL = 20;
+var MAX_SPAWN_INTERVAL = 40;
 var currentCustomerCount = 0;
 var nextSpawnTick = 0;
 
@@ -445,6 +445,18 @@ function spawnCustomerCloneAtManager(npc, api) {
 
     // Pass pricing data to customer
     var pricingData = npcData.has("PricingItems") ? npcData.get("PricingItems") : "{}";
+    
+    // Debug: show what we actually have stored
+    try {
+        var testParse = JSON.parse(pricingData);
+        if(testParse["0"] && Array.isArray(testParse["0"])){
+            var firstFood = testParse["0"][0];
+            if(firstFood){
+                var foodItem = world.createItemFromNbt(api.stringToNbt(firstFood));
+                npc.say("DEBUG: Stored pricing has: " + foodItem.getName());
+            }
+        }
+    } catch(e) {}
 
     for (var i = 0; i < nearby.length; i++) {
         var ent = nearby[i]; 
@@ -452,71 +464,23 @@ function spawnCustomerCloneAtManager(npc, api) {
             if (!ent || !ent.getName) continue;
             if (ent.getName() != "customer") continue;
             var eData = ent.getStoreddata();
-            if (eData.has("InitializedByManager")) continue;
-
-            eData.put("RestaurantMenu", JSON.stringify(menu));
-            eData.put("CounterPos", counterJson);
-            eData.put("PricingData", pricingData);  // pricingData is already a JSON string
-            eData.put("InitializedByManager", "true");
             
-            // Debug: check what we're passing
-            try {
-                var testParse = JSON.parse(pricingData);
-                var pageCount = Object.keys(testParse).length;
-                npc.say("DEBUG: Passing " + pageCount + " pricing pages");
+            var isAlreadyInitialized = eData.has("InitializedByManager");
+            
+            if (!isAlreadyInitialized) {
+                // New customer - initialize everything
+                eData.put("RestaurantMenu", JSON.stringify(menu));
+                eData.put("CounterPos", counterJson);
+                eData.put("InitializedByManager", "true");
                 
-                // Show first page items
-                if(testParse["0"] && Array.isArray(testParse["0"])){
-                    var page0 = testParse["0"];
-                    npc.say("DEBUG: Page 0 has " + page0.length + " slots");
-                    
-                    // Show first row (3 slots: food, price1, price2)
-                    if(page0.length >= 3){
-                        var food = page0[0];
-                        var price1 = page0[1];
-                        var price2 = page0[2];
-                        
-                        if(food){
-                            try {
-                                var foodItem = world.createItemFromNbt(api.stringToNbt(food));
-                                npc.say("DEBUG: Food=" + foodItem.getName());
-                            } catch(e) {
-                                npc.say("DEBUG: Food parse error");
-                            }
-                        } else {
-                            npc.say("DEBUG: Food=null");
-                        }
-                        
-                        if(price1){
-                            try {
-                                var p1Item = world.createItemFromNbt(api.stringToNbt(price1));
-                                npc.say("DEBUG: Price1=" + p1Item.getName());
-                            } catch(e) {
-                                npc.say("DEBUG: Price1 parse error");
-                            }
-                        } else {
-                            npc.say("DEBUG: Price1=null");
-                        }
-                        
-                        if(price2){
-                            try {
-                                var p2Item = world.createItemFromNbt(api.stringToNbt(price2));
-                                npc.say("DEBUG: Price2=" + p2Item.getName());
-                            } catch(e) {
-                                npc.say("DEBUG: Price2 parse error");
-                            }
-                        } else {
-                            npc.say("DEBUG: Price2=null");
-                        }
-                    }
-                }
-            } catch(e) {
-                npc.say("DEBUG: PricingData parse error: " + e);
+                // Only count as new customer
+                currentCustomerCount++;
+                npcData.put("CurrentCustomerCount", currentCustomerCount.toString());
             }
             
-            currentCustomerCount++;
-            npcData.put("CurrentCustomerCount", currentCustomerCount.toString());
-            break;
+            // ALWAYS update pricing data (even for existing customers)
+            eData.put("PricingData", pricingData);
+            
         } catch(e) {}
     }
 }
@@ -739,6 +703,68 @@ function customGuiButton(event) {
         lastNpc.getStoreddata().put("ManagerJobActive", "true");
         lastNpc.getStoreddata().put("JobStopped", "false");
         lastNpc.getStoreddata().put("CurrentCustomerCount", "0");
+        
+        // Force reload pricing data from storage to clear any cache
+        var npcData = lastNpc.getStoreddata();
+        if(npcData.has("PricingItems")){
+            // Clear the runtime variable and force fresh load
+            storedPricingItems = {};
+            
+            try {
+                var pricingJson = npcData.get("PricingItems");
+                storedPricingItems = JSON.parse(pricingJson);
+                var pageCount = Object.keys(storedPricingItems).length;
+                player.message("§aForce-reloaded " + pageCount + " pricing pages from storage");
+                
+                // Show first food item to verify
+                if(storedPricingItems["0"] && Array.isArray(storedPricingItems["0"])){
+                    var nonNullCount = 0;
+                    var firstFoodIndex = -1;
+                    for(var i = 0; i < storedPricingItems["0"].length; i += 3){
+                        if(storedPricingItems["0"][i]){
+                            nonNullCount++;
+                            if(firstFoodIndex === -1){
+                                firstFoodIndex = i;
+                            }
+                        }
+                    }
+                    
+                    if(firstFoodIndex >= 0 && storedPricingItems["0"][firstFoodIndex]){
+                        var firstFood = storedPricingItems["0"][firstFoodIndex];
+                        var foodItem = player.world.createItemFromNbt(api.stringToNbt(firstFood));
+                        player.message("§aFirst food at slot " + firstFoodIndex + ": " + foodItem.getDisplayName());
+                    }
+                }
+                
+                // Save back to ensure it's fresh
+                npcData.put("PricingItems", pricingJson);
+                
+                // UPDATE ALL EXISTING CUSTOMERS with fresh pricing data
+                var world = lastNpc.getWorld();
+                var allNearby = world.getNearbyEntities(lastNpc.getX(), lastNpc.getY(), lastNpc.getZ(), 100, 2); // 100 block radius
+                var updatedCount = 0;
+                for(var i = 0; i < allNearby.length; i++){
+                    var ent = allNearby[i];
+                    try {
+                        if(ent && ent.getName && ent.getName() === "customer"){
+                            var custData = ent.getStoreddata();
+                            // Update their pricing data
+                            custData.put("PricingData", pricingJson);
+                            updatedCount++;
+                        }
+                    } catch(e) {}
+                }
+                if(updatedCount > 0){
+                    player.message("§aUpdated " + updatedCount + " existing customers with fresh pricing data");
+                } else {
+                    player.message("§eNo existing customers found to update");
+                }
+            } catch(e) {
+                player.message("§cError reloading pricing data: " + e);
+            }
+        } else {
+            player.message("§cNo pricing data found in storage!");
+        }
 
         resetChairRuntime(lastNpc);
         spawnCustomerCloneAtManager(lastNpc, api);
@@ -769,6 +795,7 @@ function customGuiButton(event) {
 function customGuiClosed(event) {
     if (viewMode === "pricing") {
         savePricingPageItems();
+        event.player.message("§aPricing data saved!");
     } else if (viewMode === "menu" && isAdminGui) {
         var gui = event.gui;
         var npcData = lastNpc.getStoreddata();
