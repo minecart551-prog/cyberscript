@@ -1,4 +1,3 @@
-// ========== GUI IDs ==========
 var ID_JOB_LABEL = 10;
 var ID_START_JOB_BUTTON = 11;
 var ID_STOP_JOB_BUTTON = 12;
@@ -14,13 +13,11 @@ var ID_CREATE_PAGE_BUTTON = 32;
 var ID_MENU_SETUP_BUTTON = 33;
 var ID_PRICING_SETUP_BUTTON = 34;
 
-// ========== Menu Selection Config ==========
 var SECTIONS = [
     { name: "Drinks", startX: -150, startY: -60, rows: 6, columns: 4, slotSpacingX: 20, slotSpacingY: 20 },
     { name: "Food", startX: 200, startY: -60, rows: 6, columns: 4, slotSpacingX: 20, slotSpacingY: 20 }
 ];
 
-// ========== Pricing Layout Config ==========
 var pricingSlotPositions = [];
 var pricingStartX = -105;
 var pricingStartY = -120;
@@ -32,7 +29,6 @@ var foodItemOffsetX = 0;   // Food item on LEFT
 var price1OffsetX = 26;    // Price 1 on RIGHT
 var price2OffsetX = 44;    // Price 2 on RIGHT (further right)
 
-// Build pricing layout
 for (var col = 0; col < pricingNumCols; col++) {
     var colOffsetX = pricingStartX + col * pricingColSpacing;
     for (var row = 0; row < pricingNumRows; row++) {
@@ -43,7 +39,6 @@ for (var col = 0; col < pricingNumCols; col++) {
     }
 }
 
-// ========== Runtime Variables ==========
 var mySlots = [];
 var slotPositions = [];
 var selectedSlots = [];
@@ -57,7 +52,6 @@ var isAdminGui = false;
 var nextLineId = 1000;
 var slotPositionsBuilt = false;
 
-// Pricing page variables
 var currentPricingPage = 0;
 var maxPricingPages = 6;
 var storedPricingItems = {};
@@ -65,16 +59,13 @@ var pricingSlots = [];
 var pricingHighlightedSlot = null;
 var pricingHighlightLines = [];
 
-// Current view mode
 var viewMode = "menu"; // "menu" or "pricing"
 
-// Job/chairs runtime
 var CHAIR_FREE_TICKS = 600;
 var managerJobActive = false;
 var jobTicks = 0;
 var chairsList = [];
 
-// Customer spawning config
 var MIN_CUSTOMERS = 1;
 var MAX_CUSTOMERS = 6;
 var MIN_SPAWN_INTERVAL = 20;
@@ -82,7 +73,6 @@ var MAX_SPAWN_INTERVAL = 40;
 var currentCustomerCount = 0;
 var nextSpawnTick = 0;
 
-// ========== Helper Functions ==========
 function makeNullArray(n) {
     var a = new Array(n);
     for (var i = 0; i < n; i++) { a[i] = null; }
@@ -159,7 +149,6 @@ function getRandomSpawnInterval() {
     return MIN_SPAWN_INTERVAL + Math.floor(Math.random() * (MAX_SPAWN_INTERVAL - MIN_SPAWN_INTERVAL + 1));
 }
 
-// ========== Menu Selection Functions ==========
 function saveNpcMenuItems(npc, player) {
     var names = mySlots.map(function(slot) {
         var stack = slot.getStack();
@@ -215,7 +204,6 @@ function openAdminMenuGui(player, api) {
     buildSlotPositions();
     storedSlotItems = loadNpcMenuItems(lastNpc);
     
-    // Create GUI first and store reference immediately
     guiRef = api.createCustomGui(176, 166, 0, true, player);
 
     guiRef.addLabel(ID_JOB_LABEL, "Admin Menu Setup", 11, -110, 156, 12).setColor(0xFFFFFF);
@@ -309,7 +297,6 @@ function toggleHighlight(index, player, api) {
     renderPlayerGui(player, api);
 }
 
-// ========== Pricing Page Functions ==========
 function openPricingGui(player, api) {
     viewMode = "pricing";
     isAdminGui = true;
@@ -321,11 +308,9 @@ function openPricingGui(player, api) {
         storedPricingItems[currentPricingPage] = makeNullArray(pricingSlotPositions.length);
     }
     
-    // Clear previous highlights
     pricingHighlightedSlot = null;
     pricingHighlightLines = [];
     
-    // Create GUI first and store reference immediately
     guiRef = api.createCustomGui(176, 166, 0, true, player);
     
     guiRef.addLabel(ID_JOB_LABEL, "Menu Pricing Setup - Page " + (currentPricingPage + 1), 11, -110, 200, 12).setColor(0xFFFFFF);
@@ -403,9 +388,9 @@ function clearAdminHighlight(gui) {
     adminHighlightLines = [];
 }
 
-// ========== Customer Spawning ==========
 function spawnCustomerCloneAtManager(npc, api) {
     if (!npc) return;
+    
     var npcData = npc.getStoreddata();
     var spawnStr = npcData.has("CustomerSpawn") ? npcData.get("CustomerSpawn") : null;
     var spawn = parseCoordsString(spawnStr);
@@ -443,20 +428,7 @@ function spawnCustomerCloneAtManager(npc, api) {
     if (!counter) counter = { x: npc.getX ? npc.getX() : spawn.x, y: npc.getY ? npc.getY() : spawn.y, z: npc.getZ ? npc.getZ() : spawn.z };
     var counterJson = JSON.stringify(counter);
 
-    // Pass pricing data to customer
     var pricingData = npcData.has("PricingItems") ? npcData.get("PricingItems") : "{}";
-    
-    // Debug: show what we actually have stored
-    try {
-        var testParse = JSON.parse(pricingData);
-        if(testParse["0"] && Array.isArray(testParse["0"])){
-            var firstFood = testParse["0"][0];
-            if(firstFood){
-                var foodItem = world.createItemFromNbt(api.stringToNbt(firstFood));
-                npc.say("DEBUG: Stored pricing has: " + foodItem.getName());
-            }
-        }
-    } catch(e) {}
 
     for (var i = 0; i < nearby.length; i++) {
         var ent = nearby[i]; 
@@ -468,20 +440,17 @@ function spawnCustomerCloneAtManager(npc, api) {
             var isAlreadyInitialized = eData.has("InitializedByManager");
             
             if (!isAlreadyInitialized) {
-                // New customer - initialize everything
                 eData.put("RestaurantMenu", JSON.stringify(menu));
                 eData.put("CounterPos", counterJson);
+                eData.put("PricingData", pricingData);
                 eData.put("InitializedByManager", "true");
-                
-                // Only count as new customer
-                currentCustomerCount++;
-                npcData.put("CurrentCustomerCount", currentCustomerCount.toString());
+                break;
+            } else {
+                eData.put("PricingData", pricingData);
             }
             
-            // ALWAYS update pricing data (even for existing customers)
-            eData.put("PricingData", pricingData);
-            
-        } catch(e) {}
+        } catch(e) {
+        }
     }
 }
 
@@ -489,7 +458,6 @@ function signalAllCustomersToLeave(npc) {
     npc.getStoreddata().put("JobStopped", "true");
 }
 
-// ========== Event Handlers ==========
 function interact(event) {
     var player = event.player;
     var api = event.API;
@@ -506,11 +474,9 @@ function customGuiSlotClicked(event) {
     var gui = event.gui;  // Get GUI from event
     
     if (viewMode === "pricing") {
-        // Pricing mode slot handling
         var slotIndex = pricingSlots.indexOf(clickedSlot);
         
         if (slotIndex !== -1) {
-            // Clicking a pricing slot - highlight it
             clearPricingHighlight(gui);
             pricingHighlightedSlot = clickedSlot;
             var pos = pricingSlotPositions[slotIndex];
@@ -519,11 +485,9 @@ function customGuiSlotClicked(event) {
             return;
         }
         
-        // Clicking outside pricing slots (player inventory)
         if (!pricingHighlightedSlot) return;
         
         if (!stack || stack.isEmpty()) {
-            // Empty hand - clear the highlighted slot
             var currentStack = pricingHighlightedSlot.getStack();
             if (currentStack && !currentStack.isEmpty()) {
                 pricingHighlightedSlot.setStack(player.world.createItem("minecraft:air", 1));
@@ -532,7 +496,6 @@ function customGuiSlotClicked(event) {
             return;
         }
         
-        // Has item in hand - COPY it to highlighted slot (don't remove from player)
         try {
             var itemCopy = player.world.createItemFromNbt(stack.getItemNbt());
             itemCopy.setStackSize(stack.getStackSize());
@@ -542,12 +505,10 @@ function customGuiSlotClicked(event) {
         return;
         
     } else if (viewMode === "menu") {
-        // Menu mode slot handling
         var index = mySlots.indexOf(clickedSlot);
         
         if (isAdminGui) {
             if (index !== -1) {
-                // Clicking a menu slot - highlight it
                 clearAdminHighlight(gui);
                 highlightedAdminSlot = clickedSlot;
                 var pos = slotPositions[index];
@@ -556,11 +517,9 @@ function customGuiSlotClicked(event) {
                 return;
             }
             
-            // Clicking outside menu slots (player inventory)
             if (!highlightedAdminSlot) return;
             
             if (!stack || stack.isEmpty()) {
-                // Empty hand - clear the highlighted slot
                 var currentStack = highlightedAdminSlot.getStack();
                 if (currentStack && !currentStack.isEmpty()) {
                     highlightedAdminSlot.setStack(player.world.createItem("minecraft:air", 1));
@@ -569,7 +528,6 @@ function customGuiSlotClicked(event) {
                 return;
             }
             
-            // Has item in hand - COPY it to highlighted slot (don't remove from player)
             try {
                 var itemCopy = player.world.createItemFromNbt(stack.getItemNbt());
                 itemCopy.setStackSize(stack.getStackSize());
@@ -619,9 +577,6 @@ function customGuiButton(event) {
             if (currentPricingPage + 1 < totalPages) {
                 currentPricingPage++;
                 openPricingGui(player, api);
-                player.message("§eSwitched to page " + (currentPricingPage + 1));
-            } else {
-                player.message("§cNo more pages available!");
             }
         }
         return;
@@ -633,9 +588,6 @@ function customGuiButton(event) {
                 savePricingPageItems();
                 currentPricingPage--;
                 openPricingGui(player, api);
-                player.message("§eSwitched to page " + (currentPricingPage + 1));
-            } else {
-                player.message("§cAlready on first page!");
             }
         }
         return;
@@ -650,9 +602,6 @@ function customGuiButton(event) {
                 storedPricingItems[newPage] = makeNullArray(pricingSlotPositions.length);
                 currentPricingPage = newPage;
                 openPricingGui(player, api);
-                player.message("§aCreated page " + (currentPricingPage + 1));
-            } else {
-                player.message("§cMaximum of " + maxPricingPages + " pages reached!");
             }
         }
         return;
@@ -704,66 +653,29 @@ function customGuiButton(event) {
         lastNpc.getStoreddata().put("JobStopped", "false");
         lastNpc.getStoreddata().put("CurrentCustomerCount", "0");
         
-        // Force reload pricing data from storage to clear any cache
         var npcData = lastNpc.getStoreddata();
         if(npcData.has("PricingItems")){
-            // Clear the runtime variable and force fresh load
             storedPricingItems = {};
             
             try {
                 var pricingJson = npcData.get("PricingItems");
                 storedPricingItems = JSON.parse(pricingJson);
                 var pageCount = Object.keys(storedPricingItems).length;
-                player.message("§aForce-reloaded " + pageCount + " pricing pages from storage");
                 
-                // Show first food item to verify
-                if(storedPricingItems["0"] && Array.isArray(storedPricingItems["0"])){
-                    var nonNullCount = 0;
-                    var firstFoodIndex = -1;
-                    for(var i = 0; i < storedPricingItems["0"].length; i += 3){
-                        if(storedPricingItems["0"][i]){
-                            nonNullCount++;
-                            if(firstFoodIndex === -1){
-                                firstFoodIndex = i;
-                            }
-                        }
-                    }
-                    
-                    if(firstFoodIndex >= 0 && storedPricingItems["0"][firstFoodIndex]){
-                        var firstFood = storedPricingItems["0"][firstFoodIndex];
-                        var foodItem = player.world.createItemFromNbt(api.stringToNbt(firstFood));
-                        player.message("§aFirst food at slot " + firstFoodIndex + ": " + foodItem.getDisplayName());
-                    }
-                }
-                
-                // Save back to ensure it's fresh
                 npcData.put("PricingItems", pricingJson);
                 
-                // UPDATE ALL EXISTING CUSTOMERS with fresh pricing data
                 var world = lastNpc.getWorld();
-                var allNearby = world.getNearbyEntities(lastNpc.getX(), lastNpc.getY(), lastNpc.getZ(), 100, 2); // 100 block radius
-                var updatedCount = 0;
+                var allNearby = world.getNearbyEntities(lastNpc.getX(), lastNpc.getY(), lastNpc.getZ(), 100, 2);
                 for(var i = 0; i < allNearby.length; i++){
                     var ent = allNearby[i];
                     try {
                         if(ent && ent.getName && ent.getName() === "customer"){
                             var custData = ent.getStoreddata();
-                            // Update their pricing data
                             custData.put("PricingData", pricingJson);
-                            updatedCount++;
                         }
                     } catch(e) {}
                 }
-                if(updatedCount > 0){
-                    player.message("§aUpdated " + updatedCount + " existing customers with fresh pricing data");
-                } else {
-                    player.message("§eNo existing customers found to update");
-                }
-            } catch(e) {
-                player.message("§cError reloading pricing data: " + e);
-            }
-        } else {
-            player.message("§cNo pricing data found in storage!");
+            } catch(e) {}
         }
 
         resetChairRuntime(lastNpc);
@@ -795,7 +707,6 @@ function customGuiButton(event) {
 function customGuiClosed(event) {
     if (viewMode === "pricing") {
         savePricingPageItems();
-        event.player.message("§aPricing data saved!");
     } else if (viewMode === "menu" && isAdminGui) {
         var gui = event.gui;
         var npcData = lastNpc.getStoreddata();
@@ -885,9 +796,13 @@ function tick(event) {
 
     if (jobTicks >= nextSpawnTick) {
         if (currentCustomerCount < MIN_CUSTOMERS) {
+            currentCustomerCount++;
+            npc.getStoreddata().put("CurrentCustomerCount", currentCustomerCount.toString());
             spawnCustomerCloneAtManager(npc, api);
             nextSpawnTick = jobTicks + getRandomSpawnInterval();
         } else if (currentCustomerCount < MAX_CUSTOMERS) {
+            currentCustomerCount++;
+            npc.getStoreddata().put("CurrentCustomerCount", currentCustomerCount.toString());
             spawnCustomerCloneAtManager(npc, api);
             nextSpawnTick = jobTicks + getRandomSpawnInterval();
         } else {
