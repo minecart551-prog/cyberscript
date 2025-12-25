@@ -95,6 +95,16 @@ function tryClaimChair(npc, managerNpc){
             
             managerData.put("ChairList", JSON.stringify(chairsList));
             
+            // Increment customer count when claiming chair
+            var currentCount = 0;
+            try {
+                if(managerData.has("CurrentCustomerCount")){
+                    currentCount = parseInt(managerData.get("CurrentCustomerCount"));
+                }
+            } catch(e) {}
+            currentCount++;
+            managerData.put("CurrentCustomerCount", currentCount.toString());
+            
             myChairIndex = i;
             assignedChair = {x: chairsList[i].x, y: chairsList[i].y, z: chairsList[i].z};
             
@@ -160,10 +170,7 @@ function findPriceForItem(itemNbtString, api, world, npc) {
     }
     
     var foodName = foodToMatch.getName();
-    npc.say("Looking for: " + foodName);
-    
     var prices = [];
-    var checkedCount = 0;
     
     for (var pageKey in pricingData) {
         var pageData = pricingData[pageKey];
@@ -180,14 +187,8 @@ function findPriceForItem(itemNbtString, api, world, npc) {
                     var pricingFoodItem = world.createItemFromNbt(api.stringToNbt(foodItem));
                     var pricingFoodName = pricingFoodItem.getName();
                     
-                    checkedCount++;
-                    if(checkedCount <= 5) { // Show first 5
-                        npc.say("Slot " + i + ": " + pricingFoodName);
-                    }
-                    
                     // Compare by item name
                     if (pricingFoodName === foodName) {
-                        npc.say("MATCH at slot " + i + "!");
                         if (price1) prices.push(price1);
                         if (price2) prices.push(price2);
                         return prices;
@@ -197,7 +198,6 @@ function findPriceForItem(itemNbtString, api, world, npc) {
         }
     }
     
-    npc.say("No match. Checked " + checkedCount + " food items");
     return prices;
 }
 
@@ -256,32 +256,10 @@ function tick(event){
                 pricingData = JSON.parse(rawData);
                 var pageCount = Object.keys(pricingData).length;
                 if(pageCount > 0){
-                    npc.say("Successfully loaded " + pageCount + " pricing pages!");
-                    
-                    // Debug: show what's in page 0
-                    if(pricingData["0"] && Array.isArray(pricingData["0"])){
-                        var itemCount = 0;
-                        var firstFoodSlot = -1;
-                        for(var i = 0; i < pricingData["0"].length; i += 3){
-                            if(pricingData["0"][i]){
-                                itemCount++;
-                                if(firstFoodSlot === -1){
-                                    firstFoodSlot = i;
-                                    try {
-                                        var testItem = world.createItemFromNbt(api.stringToNbt(pricingData["0"][i]));
-                                        npc.say("First food in MY data: slot " + i + " = " + testItem.getName());
-                                    } catch(e) {}
-                                }
-                            }
-                        }
-                        npc.say("Found " + itemCount + " food items in page 0");
-                    }
-                    
                     pricingDataLoaded = true;
                 }
             }catch(e){
                 pricingData = {};
-                npc.say("Parse error: " + e);
             }
         }
     }
@@ -421,17 +399,10 @@ function tick(event){
                 if(managerData.has("PricingItems")){
                     try{
                         pricingData = JSON.parse(managerData.get("PricingItems"));
-                        var pageCount = Object.keys(pricingData).length;
-                        npc.say("Loaded " + pageCount + " pricing pages from manager");
                     }catch(e){
                         pricingData = {};
-                        npc.say("Parse error: " + e);
                     }
-                } else {
-                    npc.say("Manager has no pricing data!");
                 }
-            } else {
-                npc.say("No manager found!");
             }
 
             if(menuItems.length > 0){
@@ -480,22 +451,101 @@ function interact(event){
         player.message("This customer has already paid.");
         return;
     }
-
-    var gui = api.createCustomGui(102, 180, 0, true, player);
-    gui.addLabel(1, "Customer wants:", 10, 10, 150, 12);
-
-    var slotX = 10;
-    var currentY = 35;
     
-    for(var i=0; i<orderedItems.length && i<3; i++){
-        var slot = gui.addItemSlot(slotX, currentY);
-        if(orderedItems[i]){
-            slot.setStack(orderedItems[i]);
-        }
-        currentY += 25;
-    }
+    // Check what player is holding
+    var heldItem = player.getMainhandItem();
+    
+    if(!heldItem || heldItem.isEmpty()){
+        var gui = api.createCustomGui(102, 180, 0, true, player);
+        var label = gui.addLabel(1, "Customer wants:", 10, 10, 150, 12);
+        label.setColor(0xFFFFFF);
 
-    player.showCustomGui(gui);
+        var currentX = 10;
+        var slotY = 35;
+        
+        for(var i=0; i<orderedItems.length && i<3; i++){
+            var slot = gui.addItemSlot(currentX, slotY);
+            if(orderedItems[i]){
+                slot.setStack(orderedItems[i]);
+            }
+            currentX += 25;
+        }
+
+        player.showCustomGui(gui);
+        return;
+    }
+    
+    // Player is holding something - check if it's a needed food item
+    var heldName = heldItem.getName();
+    var matchedIndex = -1;
+    
+    for(var i=0; i<orderedItems.length; i++){
+        if(orderedItems[i] && orderedItems[i].getName() === heldName){
+            matchedIndex = i;
+            break;
+        }
+    }
+    
+    if(matchedIndex === -1){
+        player.message("§cThis customer didn't order that item!");
+        return;
+    }
+    
+    // Check if this item was already delivered
+    if(!orderedItems[matchedIndex]){
+        player.message("§cYou already gave this item!");
+        return;
+    }
+    
+    // Take the item from player
+    var neededAmount = orderedItems[matchedIndex].getStackSize();
+    var inv = player.getInventory().getItems();
+    var removed = 0;
+    
+    for(var j=0; j<inv.length && removed < neededAmount; j++){
+        var invItem = inv[j];
+        if(invItem && invItem.getName() === heldName){
+            var toRemove = Math.min(neededAmount - removed, invItem.getStackSize());
+            invItem.setStackSize(invItem.getStackSize() - toRemove);
+            removed += toRemove;
+        }
+    }
+    
+    if(removed < neededAmount){
+        player.message("§cYou need " + neededAmount + " of this item!");
+        return;
+    }
+    
+    // Mark this item as delivered
+    orderedItems[matchedIndex] = null;
+    player.message("§aItem delivered!");
+    
+    // Check if ALL items are now delivered
+    var allDelivered = true;
+    for(var i=0; i<orderedItems.length; i++){
+        if(orderedItems[i]){
+            allDelivered = false;
+            break;
+        }
+    }
+    
+    if(allDelivered){
+        // All food delivered! Give payment
+        for(var i=0; i<orderedPrices.length; i++){
+            var priceArray = orderedPrices[i];
+            for(var j=0; j<priceArray.length; j++){
+                try {
+                    var paymentItem = player.world.createItemFromNbt(api.stringToNbt(priceArray[j]));
+                    player.giveItem(paymentItem);
+                } catch(e) {}
+            }
+        }
+        
+        paymentReceived = true;
+        npc.getStoreddata().put("PaymentReceived", "true");
+        player.message("§aTransaction complete!");
+        npc.say("Thank you!");
+    }
 }
 
 function customGuiClosed(event){
@@ -504,108 +554,5 @@ function customGuiClosed(event){
         if(event.npc){
             event.npc.getStoreddata().put("GuiClosed", "true");
         }
-        
-        // Check if player provided all ordered items and payment
-        var player = event.player;
-        var npc = event.npc;
-        if(!player || !npc || orderedItems.length === 0) return;
-        
-        var inv = player.getInventory().getItems();
-        
-        // Check if player has all ordered food items
-        var hasAllFood = true;
-        for(var i=0; i<orderedItems.length; i++){
-            var needed = orderedItems[i];
-            if(!needed || needed.isEmpty()) continue;
-            
-            var foundCount = 0;
-            for(var j=0; j<inv.length; j++){
-                var invItem = inv[j];
-                if(invItem && invItem.getName() === needed.getName()){
-                    foundCount += invItem.getStackSize();
-                }
-            }
-            
-            if(foundCount < needed.getStackSize()){
-                hasAllFood = false;
-                break;
-            }
-        }
-        
-        if(!hasAllFood){
-            return; // Don't process payment if food not delivered
-        }
-        
-        // Check if player has all payment items
-        var hasAllPayment = true;
-        var paymentNeeded = {};
-        
-        for(var i=0; i<orderedPrices.length; i++){
-            var priceArray = orderedPrices[i];
-            for(var j=0; j<priceArray.length; j++){
-                try {
-                    var priceItem = player.world.createItemFromNbt(event.API.stringToNbt(priceArray[j]));
-                    var itemName = priceItem.getName();
-                    var itemCount = priceItem.getStackSize();
-                    
-                    if(!paymentNeeded[itemName]){
-                        paymentNeeded[itemName] = 0;
-                    }
-                    paymentNeeded[itemName] += itemCount;
-                } catch(e) {}
-            }
-        }
-        
-        for(var itemName in paymentNeeded){
-            var needed = paymentNeeded[itemName];
-            var foundCount = 0;
-            
-            for(var j=0; j<inv.length; j++){
-                var invItem = inv[j];
-                if(invItem && invItem.getName() === itemName){
-                    foundCount += invItem.getStackSize();
-                }
-            }
-            
-            if(foundCount < needed){
-                hasAllPayment = false;
-                break;
-            }
-        }
-        
-        if(!hasAllFood || !hasAllPayment){
-            return;
-        }
-        
-        // Remove food items from player
-        for(var i=0; i<orderedItems.length; i++){
-            var needed = orderedItems[i];
-            if(!needed || needed.isEmpty()) continue;
-            
-            var toRemove = needed.getStackSize();
-            for(var j=0; j<inv.length && toRemove > 0; j++){
-                var invItem = inv[j];
-                if(invItem && invItem.getName() === needed.getName()){
-                    var removeAmt = Math.min(toRemove, invItem.getStackSize());
-                    invItem.setStackSize(invItem.getStackSize() - removeAmt);
-                    toRemove -= removeAmt;
-                }
-            }
-        }
-        
-        // Give payment to player
-        for(var i=0; i<orderedPrices.length; i++){
-            var priceArray = orderedPrices[i];
-            for(var j=0; j<priceArray.length; j++){
-                try {
-                    var paymentItem = player.world.createItemFromNbt(event.API.stringToNbt(priceArray[j]));
-                    player.giveItem(paymentItem);
-                } catch(e) {}
-            }
-        }
-        
-        npc.getStoreddata().put("PaymentReceived", "true");
-        player.message("§aTransaction complete!");
-        
     }catch(e){}
 }
