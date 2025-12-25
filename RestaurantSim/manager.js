@@ -76,9 +76,9 @@ var chairsList = [];
 
 // Customer spawning config
 var MIN_CUSTOMERS = 1;
-var MAX_CUSTOMERS = 6;
-var MIN_SPAWN_INTERVAL = 20;
-var MAX_SPAWN_INTERVAL = 40;
+var MAX_CUSTOMERS = 1;
+var MIN_SPAWN_INTERVAL = 200;
+var MAX_SPAWN_INTERVAL = 300;
 var currentCustomerCount = 0;
 var nextSpawnTick = 0;
 
@@ -404,7 +404,7 @@ function clearAdminHighlight(gui) {
 }
 
 // ========== Customer Spawning ==========
-function spawnCustomerCloneAtManager(npc) {
+function spawnCustomerCloneAtManager(npc, api) {
     if (!npc) return;
     var npcData = npc.getStoreddata();
     var spawnStr = npcData.has("CustomerSpawn") ? npcData.get("CustomerSpawn") : null;
@@ -456,8 +456,63 @@ function spawnCustomerCloneAtManager(npc) {
 
             eData.put("RestaurantMenu", JSON.stringify(menu));
             eData.put("CounterPos", counterJson);
-            eData.put("PricingData", pricingData);
+            eData.put("PricingData", pricingData);  // pricingData is already a JSON string
             eData.put("InitializedByManager", "true");
+            
+            // Debug: check what we're passing
+            try {
+                var testParse = JSON.parse(pricingData);
+                var pageCount = Object.keys(testParse).length;
+                npc.say("DEBUG: Passing " + pageCount + " pricing pages");
+                
+                // Show first page items
+                if(testParse["0"] && Array.isArray(testParse["0"])){
+                    var page0 = testParse["0"];
+                    npc.say("DEBUG: Page 0 has " + page0.length + " slots");
+                    
+                    // Show first row (3 slots: food, price1, price2)
+                    if(page0.length >= 3){
+                        var food = page0[0];
+                        var price1 = page0[1];
+                        var price2 = page0[2];
+                        
+                        if(food){
+                            try {
+                                var foodItem = world.createItemFromNbt(api.stringToNbt(food));
+                                npc.say("DEBUG: Food=" + foodItem.getName());
+                            } catch(e) {
+                                npc.say("DEBUG: Food parse error");
+                            }
+                        } else {
+                            npc.say("DEBUG: Food=null");
+                        }
+                        
+                        if(price1){
+                            try {
+                                var p1Item = world.createItemFromNbt(api.stringToNbt(price1));
+                                npc.say("DEBUG: Price1=" + p1Item.getName());
+                            } catch(e) {
+                                npc.say("DEBUG: Price1 parse error");
+                            }
+                        } else {
+                            npc.say("DEBUG: Price1=null");
+                        }
+                        
+                        if(price2){
+                            try {
+                                var p2Item = world.createItemFromNbt(api.stringToNbt(price2));
+                                npc.say("DEBUG: Price2=" + p2Item.getName());
+                            } catch(e) {
+                                npc.say("DEBUG: Price2 parse error");
+                            }
+                        } else {
+                            npc.say("DEBUG: Price2=null");
+                        }
+                    }
+                }
+            } catch(e) {
+                npc.say("DEBUG: PricingData parse error: " + e);
+            }
             
             currentCustomerCount++;
             npcData.put("CurrentCustomerCount", currentCustomerCount.toString());
@@ -686,7 +741,7 @@ function customGuiButton(event) {
         lastNpc.getStoreddata().put("CurrentCustomerCount", "0");
 
         resetChairRuntime(lastNpc);
-        spawnCustomerCloneAtManager(lastNpc);
+        spawnCustomerCloneAtManager(lastNpc, api);
     }
     
     if (event.buttonId === ID_STOP_JOB_BUTTON) {
@@ -745,6 +800,7 @@ function customGuiClosed(event) {
 
 function tick(event) {
     var npc = event.npc;
+    var api = event.API;
 
     if (npc.getStoreddata().has("ChairList")) {
         try { 
@@ -802,10 +858,10 @@ function tick(event) {
 
     if (jobTicks >= nextSpawnTick) {
         if (currentCustomerCount < MIN_CUSTOMERS) {
-            spawnCustomerCloneAtManager(npc);
+            spawnCustomerCloneAtManager(npc, api);
             nextSpawnTick = jobTicks + getRandomSpawnInterval();
         } else if (currentCustomerCount < MAX_CUSTOMERS) {
-            spawnCustomerCloneAtManager(npc);
+            spawnCustomerCloneAtManager(npc, api);
             nextSpawnTick = jobTicks + getRandomSpawnInterval();
         } else {
             nextSpawnTick = jobTicks + getRandomSpawnInterval();
