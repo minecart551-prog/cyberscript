@@ -169,6 +169,7 @@ function findPriceForItem(itemNbtString, api, world, npc) {
         var pageData = pricingData[pageKey];
         if (!Array.isArray(pageData)) continue;
         
+        // Loop through every 3 slots (food, price1, price2)
         for (var i = 0; i < pageData.length; i += 3) {
             var foodItem = pageData[i];
             var price1 = pageData[i + 1];
@@ -180,13 +181,13 @@ function findPriceForItem(itemNbtString, api, world, npc) {
                     var pricingFoodName = pricingFoodItem.getName();
                     
                     checkedCount++;
-                    if(checkedCount <= 3) { // Only show first 3
-                        npc.say("Checking: " + pricingFoodName);
+                    if(checkedCount <= 5) { // Show first 5
+                        npc.say("Slot " + i + ": " + pricingFoodName);
                     }
                     
                     // Compare by item name
                     if (pricingFoodName === foodName) {
-                        npc.say("MATCH FOUND!");
+                        npc.say("MATCH at slot " + i + "!");
                         if (price1) prices.push(price1);
                         if (price2) prices.push(price2);
                         return prices;
@@ -196,7 +197,7 @@ function findPriceForItem(itemNbtString, api, world, npc) {
         }
     }
     
-    npc.say("No match. Checked " + checkedCount + " items");
+    npc.say("No match. Checked " + checkedCount + " food items");
     return prices;
 }
 
@@ -256,10 +257,31 @@ function tick(event){
                 var pageCount = Object.keys(pricingData).length;
                 if(pageCount > 0){
                     npc.say("Successfully loaded " + pageCount + " pricing pages!");
+                    
+                    // Debug: show what's in page 0
+                    if(pricingData["0"] && Array.isArray(pricingData["0"])){
+                        var itemCount = 0;
+                        var firstFoodSlot = -1;
+                        for(var i = 0; i < pricingData["0"].length; i += 3){
+                            if(pricingData["0"][i]){
+                                itemCount++;
+                                if(firstFoodSlot === -1){
+                                    firstFoodSlot = i;
+                                    try {
+                                        var testItem = world.createItemFromNbt(api.stringToNbt(pricingData["0"][i]));
+                                        npc.say("First food in MY data: slot " + i + " = " + testItem.getName());
+                                    } catch(e) {}
+                                }
+                            }
+                        }
+                        npc.say("Found " + itemCount + " food items in page 0");
+                    }
+                    
                     pricingDataLoaded = true;
                 }
             }catch(e){
                 pricingData = {};
+                npc.say("Parse error: " + e);
             }
         }
     }
@@ -392,6 +414,25 @@ function tick(event){
 
         if(dx*dx + dy*dy + dz*dz < 4){
             orderPlaced = true;
+            
+            // Load pricing data from MANAGER at counter
+            if(managerNpc){
+                var managerData = managerNpc.getStoreddata();
+                if(managerData.has("PricingItems")){
+                    try{
+                        pricingData = JSON.parse(managerData.get("PricingItems"));
+                        var pageCount = Object.keys(pricingData).length;
+                        npc.say("Loaded " + pageCount + " pricing pages from manager");
+                    }catch(e){
+                        pricingData = {};
+                        npc.say("Parse error: " + e);
+                    }
+                } else {
+                    npc.say("Manager has no pricing data!");
+                }
+            } else {
+                npc.say("No manager found!");
+            }
 
             if(menuItems.length > 0){
                 orderedItems = [];
