@@ -291,6 +291,8 @@ function tick(event){
     }
 
     if(managerNpc && isJobStopped(managerNpc)){
+        // Reset animation when leaving
+        npc.getAi().setAnimation(0); // NORMAL animation
         returningToSpawn = true;
         assignedChair = null;
         chairReached = false;
@@ -307,6 +309,8 @@ function tick(event){
     }
 
     if(assignedChair && chairReached && isMyChairExpired(npc, managerNpc)){
+        // Reset animation when leaving chair
+        npc.getAi().setAnimation(0); // NORMAL animation
         returningToSpawn = true;
         assignedChair = null;
         chairReached = false;
@@ -322,7 +326,8 @@ function tick(event){
                 paymentReceived = true;
                 selfData.put("PaymentReceived", "false");
                 
-                // Wait a bit then leave
+                // Reset animation and leave
+                npc.getAi().setAnimation(0); // NORMAL animation
                 returningToSpawn = true;
                 npc.say("Thank you!");
             }
@@ -363,6 +368,8 @@ function tick(event){
 
         if(distSq < 1.0){
             chairReached = true;
+            // Set sitting animation when reaching the chair
+            npc.getAi().setAnimation(1); // SIT animation (value 3)
         }
         return;
     }
