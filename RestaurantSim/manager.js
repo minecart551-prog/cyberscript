@@ -19,6 +19,7 @@ var SECTIONS = [
     { name: "Food", startX: 205, startY: -60, rows: 6, columns: 4, slotSpacingX: 20, slotSpacingY: 20 }
 ];
 
+var scanRange = 16;
 var pricingSlotPositions = [];
 var pricingStartX = -105;
 var pricingStartY = -116;
@@ -62,7 +63,7 @@ var pricingHighlightLines = [];
 
 var viewMode = "menu";
 
-var CHAIR_FREE_TICKS = 600;
+var CHAIR_FREE_TICKS = 20;
 var managerJobActive = false;
 var jobTicks = 0;
 var chairsList = [];
@@ -409,7 +410,7 @@ function spawnCustomerCloneAtManager(npc, api) {
 
     var nearby = []; 
     try { 
-        nearby = world.getNearbyEntities(Math.floor(spawn.x), Math.floor(spawn.y), Math.floor(spawn.z), 8, 2); 
+        nearby = world.getNearbyEntities(Math.floor(spawn.x), Math.floor(spawn.y), Math.floor(spawn.z), scanRange, 2); 
     } catch(e) { 
         try { nearby = world.getNearbyEntities(spawn.x, spawn.y, spawn.z, 8, 2); } 
         catch(e2) { nearby = []; } 
@@ -676,7 +677,7 @@ function customGuiButton(event) {
                 npcData.put("PricingItems", pricingJson);
                 
                 var world = lastNpc.getWorld();
-                var allNearby = world.getNearbyEntities(lastNpc.getX(), lastNpc.getY(), lastNpc.getZ(), 100, 2);
+                var allNearby = world.getNearbyEntities(lastNpc.getX(), lastNpc.getY(), lastNpc.getZ(), scanRange, 2);
                 for(var i = 0; i < allNearby.length; i++){
                     var ent = allNearby[i];
                     try {
