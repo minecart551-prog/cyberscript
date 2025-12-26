@@ -2,7 +2,7 @@ var managerFound = false;
 var menuItems = [];
 var counterPos = null;
 var navigationSpeed = 0.4;
-var scanRadius = 16;
+var scanRadius = 30;
 var orderPlaced = false;
 
 var orderedItems = [];
