@@ -1,3 +1,8 @@
+// ===== CONFIGURATION =====
+var deliveryOfficePos = {x: 2492, z: 839}; // Set the delivery office coordinates here
+var coinRate = 8; // Coins per 100 blocks distance
+// =========================
+
 var guiRef;
 var mySlots = [];
 var highlightLineIds = [];
@@ -46,6 +51,94 @@ function makeNullArray(n){
 function init(e) {
     e.npc.setFaction(4);
     e.npc.getAi().setStandingType(2);
+    
+    // Get NPC position
+    var npcPos = e.npc.getPos();
+    var npcX = npcPos.getX();
+    var npcZ = npcPos.getZ();
+    
+    // Calculate distance to delivery office
+    var dx = npcX - deliveryOfficePos.x;
+    var dz = npcZ - deliveryOfficePos.z;
+    var distance = Math.sqrt(dx * dx + dz * dz);
+    
+    // Calculate total coins and round up
+    var totalCoins = Math.ceil((distance / 100.0) * coinRate);
+    
+    // Convert to coal and stone coins
+    var coalCoins = Math.floor(totalCoins / 100);
+    var stoneCoins = totalCoins % 100;
+    
+    // Load existing storage
+    var npcData = e.npc.getStoreddata();
+    var storedA = makeNullArray(STORAGE_SIZE);
+    var storedB = makeNullArray(STORAGE_SIZE);
+    
+    if (npcData.has("SlotItems")) {
+        try {
+            storedA = JSON.parse(npcData.get("SlotItems"));
+            if (!storedA || storedA.length < STORAGE_SIZE) {
+                var tmp = makeNullArray(STORAGE_SIZE);
+                if (storedA && storedA.length > 0) {
+                    for (var i = 0; i < storedA.length && i < STORAGE_SIZE; i++) tmp[i] = storedA[i];
+                }
+                storedA = tmp;
+            }
+        } catch(ex) {
+            storedA = makeNullArray(STORAGE_SIZE);
+        }
+    }
+    
+    if (npcData.has("SlotItemsB")) {
+        try {
+            storedB = JSON.parse(npcData.get("SlotItemsB"));
+            if (!storedB || storedB.length < STORAGE_SIZE) {
+                var tmp2 = makeNullArray(STORAGE_SIZE);
+                if (storedB && storedB.length > 0) {
+                    for (var j = 0; j < storedB.length && j < STORAGE_SIZE; j++) tmp2[j] = storedB[j];
+                }
+                storedB = tmp2;
+            }
+        } catch(ex) {
+            storedB = makeNullArray(STORAGE_SIZE);
+        }
+    }
+    
+    // Clear all reward slots (not the key slot at GRID_SIZE)
+    for (var k = 0; k < GRID_SIZE; k++) {
+        storedA[k] = null;
+        storedB[k] = null;
+    }
+    
+    // Place coins starting at index 4 (middle slot - row 2, col 2)
+    var currentIndex = 4;
+    
+    // Clear the slot where coal coins will go (if any)
+    if (coalCoins > 0) {
+        storedA[currentIndex] = null;
+        storedB[currentIndex] = null;
+        
+        var coalCoin = e.npc.world.createItem("coins:coal_coin", coalCoins);
+        var coalNbt = coalCoin.getItemNbt().toJsonString();
+        storedA[currentIndex] = coalNbt;
+        storedB[currentIndex] = coalNbt;
+        currentIndex++;
+    }
+    
+    // Clear the slot where stone coins will go (if any)
+    if (stoneCoins > 0) {
+        storedA[currentIndex] = null;
+        storedB[currentIndex] = null;
+        
+        var stoneCoin = e.npc.world.createItem("coins:stone_coin", stoneCoins);
+        var stoneNbt = stoneCoin.getItemNbt().toJsonString();
+        storedA[currentIndex] = stoneNbt;
+        storedB[currentIndex] = stoneNbt;
+    }
+    
+    // Save updated storage
+    npcData.put("SlotItems", JSON.stringify(storedA));
+    npcData.put("SlotItemsB", JSON.stringify(storedB));
 }
 
 // Helper: normalize NBT JSON string for comparison by removing Count entries
