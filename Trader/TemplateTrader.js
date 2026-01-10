@@ -171,22 +171,18 @@ function customGuiSlotClicked(event) {
                     if(total <= maxStack) {
                         slotStack.setStackSize(total);
                         highlightedSlot.setStack(slotStack);
-                        player.removeItem(stack, stack.getStackSize());
+                        // CHANGED: Don't remove item from player
                     } else {
                         var overflow = total - maxStack;
                         slotStack.setStackSize(maxStack);
                         highlightedSlot.setStack(slotStack);
-
-                        var overflowCopy = player.world.createItemFromNbt(stack.getItemNbt());
-                        overflowCopy.setStackSize(overflow);
-                        player.removeItem(stack, stack.getStackSize());
-                        player.giveItem(overflowCopy);
+                        // CHANGED: Don't remove or give back items
                     }
                 } else {
                     var itemCopy = player.world.createItemFromNbt(stack.getItemNbt());
                     if(slotStack && !slotStack.isEmpty()) player.giveItem(slotStack);
                     highlightedSlot.setStack(itemCopy);
-                    player.removeItem(stack, stack.getStackSize());
+                    // CHANGED: Don't remove item from player
                 }
             } else if(slotStack && !slotStack.isEmpty()) {
                 player.giveItem(slotStack);
