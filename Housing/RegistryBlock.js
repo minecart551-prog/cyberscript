@@ -14,13 +14,11 @@ function interact(t){
     lastBlock = t.block;
     lastAPI = t.API;
     
-    // Initialize world data
-    if(!worldData.has("globalKeyList")) worldData.put("globalKeyList", JSON.stringify([]));
-    if(!worldData.has("doorPairingMap")) worldData.put("doorPairingMap", JSON.stringify({}));
+    // Initialize world data with merged structure
+    if(!worldData.has("keyRegistry")) worldData.put("keyRegistry", JSON.stringify({}));
     if(!worldData.has("keyCounter")) worldData.put("keyCounter", "0");
     
-    var keyList = JSON.parse(worldData.get("globalKeyList"));
-    var doorPairingMap = JSON.parse(worldData.get("doorPairingMap"));
+    var keyRegistry = JSON.parse(worldData.get("keyRegistry"));
     
     // Register key if holding one
     if(handItem && !handItem.isEmpty() && handItem.getName() == "lockandblock:key"){
@@ -50,8 +48,13 @@ function interact(t){
         player.message("§aAssigned Key ID: §f" + keyID);
         player.message("§aKey registered: §f" + keyName);
         
-        keyList.push({name: keyName, id: keyID, doorCoord: doorPairingMap[keyID] || null});
-        worldData.put("globalKeyList", JSON.stringify(keyList));
+        // Add to merged registry
+        keyRegistry[keyID] = {
+            name: keyName,
+            id: keyID,
+            doorCoord: null
+        };
+        worldData.put("keyRegistry", JSON.stringify(keyRegistry));
     }
     
     renderKeyListGUI(player, lastAPI);
@@ -67,18 +70,6 @@ function getKeyID(itemNbt){
     }
 }
 
-function updateKeyInList(keyList, keyID, keyName, doorPairingMap){
-    for(var i = 0; i < keyList.length; i++){
-        if(keyList[i].id == keyID){
-            keyList[i].name = keyName;
-            keyList[i].doorCoord = doorPairingMap[keyID] || null;
-            return;
-        }
-    }
-    // If not found, add it
-    keyList.push({name: keyName, id: keyID, doorCoord: doorPairingMap[keyID] || null});
-}
-
 function cleanNbtJson(nbtString){
     if(!nbtString) return "{}";
     return nbtString.replace(/:\s*(-?\d+)[bBsSlLfFdD]/g, ": $1")
@@ -87,7 +78,13 @@ function cleanNbtJson(nbtString){
 
 function renderKeyListGUI(player, api){
     var worldData = player.world.getStoreddata();
-    var keyList = JSON.parse(worldData.get("globalKeyList"));
+    var keyRegistry = JSON.parse(worldData.get("keyRegistry"));
+    
+    // Convert registry object to array for filtering/display
+    var keyList = [];
+    for(var keyID in keyRegistry){
+        keyList.push(keyRegistry[keyID]);
+    }
     
     // Filter keys based on search query
     var filteredKeys = keyList;
@@ -119,16 +116,10 @@ function renderKeyListGUI(player, api){
             var key = filteredKeys[i];
             var doorText = key.doorCoord ? "§7Door: §f" + key.doorCoord : "§7Door: §cNot paired";
             
-            // Find original index in full keyList for deletion
-            var originalIndex = -1;
-            for(var j = 0; j < keyList.length; j++){
-                if(keyList[j].id == key.id){
-                    originalIndex = j;
-                    break;
-                }
-            }
+            // Use keyID directly for button ID (converted to number)
+            var buttonID = 100 + parseInt(key.id);
             
-            guiRef.addButton(100 + originalIndex, "§cX", 10, yPos, 15, 15);
+            guiRef.addButton(buttonID, "§cX", 10, yPos, 15, 15);
             guiRef.addLabel(10 + i, "§e" + key.name + " §7(ID: " + key.id + ")", 30, yPos, 0.7, 0.7);
             guiRef.addLabel(30 + i, doorText, 30, yPos + 8, 0.6, 0.6);
             yPos += 20;
@@ -143,24 +134,21 @@ function renderKeyListGUI(player, api){
     player.showCustomGui(guiRef);
 }
 
-function deleteKey(keyIndex, player, api){
+function deleteKey(keyID, player, api){
     var worldData = player.world.getStoreddata();
-    var keyList = JSON.parse(worldData.get("globalKeyList"));
+    var keyRegistry = JSON.parse(worldData.get("keyRegistry"));
     
-    if(keyIndex < keyList.length){
-        var deletedKey = keyList[keyIndex];
-        var keyID = deletedKey.id;
+    if(keyRegistry[keyID]){
+        var deletedKey = keyRegistry[keyID];
         
-        // Remove key from list
-        keyList.splice(keyIndex, 1);
-        worldData.put("globalKeyList", JSON.stringify(keyList));
-        
-        // Remove door pairing for this key
-        var doorPairingMap = JSON.parse(worldData.get("doorPairingMap"));
-        delete doorPairingMap[keyID];
-        worldData.put("doorPairingMap", JSON.stringify(doorPairingMap));
+        // Remove key from registry (this also removes the door pairing)
+        delete keyRegistry[keyID];
+        worldData.put("keyRegistry", JSON.stringify(keyRegistry));
         
         player.message("§cDeleted key: §f" + deletedKey.name + " §7(ID: " + keyID + ")");
+        if(deletedKey.doorCoord){
+            player.message("§7Door unpaired: " + deletedKey.doorCoord);
+        }
         
         // Re-render GUI with updated list (keep search query)
         renderKeyListGUI(player, api);
@@ -190,7 +178,7 @@ function customGuiButton(t){
         return;
     }
     
-    if(t.buttonId >= 100 && t.buttonId < 200){
+    if(t.buttonId >= 100){
         // Before deleting, preserve the current search query from the text field
         var gui = t.gui;
         if(gui){
@@ -200,8 +188,9 @@ function customGuiButton(t){
             }
         }
         
-        var keyIndex = t.buttonId - 100;
-        deleteKey(keyIndex, player, lastAPI);
+        // Extract keyID from buttonID
+        var keyID = (t.buttonId - 100).toString();
+        deleteKey(keyID, player, lastAPI);
     }
 }
 
