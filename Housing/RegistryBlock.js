@@ -94,8 +94,13 @@ function renderKeyListGUI(player, api){
         var lowerQuery = searchQuery.toLowerCase();
         filteredKeys = [];
         for(var i = 0; i < keyList.length; i++){
-            if(keyList[i].name.toLowerCase().indexOf(lowerQuery) !== -1){
-                filteredKeys.push(keyList[i]);
+            var key = keyList[i];
+            var keyNameMatch = key.name.toLowerCase().indexOf(lowerQuery) !== -1;
+            var firstBuyerMatch = key.firstBuyer && key.firstBuyer.toLowerCase().indexOf(lowerQuery) !== -1;
+            var lastUserMatch = key.lastUser && key.lastUser.toLowerCase().indexOf(lowerQuery) !== -1;
+            
+            if(keyNameMatch || firstBuyerMatch || lastUserMatch){
+                filteredKeys.push(key);
             }
         }
     }
