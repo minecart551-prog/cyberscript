@@ -52,7 +52,8 @@ function interact(t){
         keyRegistry[keyID] = {
             name: keyName,
             id: keyID,
-            doorCoords: []
+            doorCoords: [],
+            lastUser: null
         };
         worldData.put("keyRegistry", JSON.stringify(keyRegistry));
     }
@@ -115,6 +116,12 @@ function renderKeyListGUI(player, api){
         for(var i = 0; i < displayLimit; i++){
             var key = filteredKeys[i];
             
+            // Build key name with last user
+            var keyNameText = "§e" + key.name + " §7(ID: " + key.id + ")";
+            if(key.lastUser){
+                keyNameText += " §f" + key.lastUser;
+            }
+            
             // Build door display text
             var doorText = "";
             if(!key.doorCoords || key.doorCoords.length == 0){
@@ -130,7 +137,7 @@ function renderKeyListGUI(player, api){
             var buttonID = 100 + parseInt(key.id);
             
             guiRef.addButton(buttonID, "§cX", 10, yPos, 15, 15);
-            guiRef.addLabel(10 + i, "§e" + key.name + " §7(ID: " + key.id + ")", 30, yPos, 0.7, 0.7);
+            guiRef.addLabel(10 + i, keyNameText, 30, yPos, 0.7, 0.7);
             guiRef.addLabel(30 + i, doorText, 30, yPos + 8, 0.6, 0.6);
             yPos += 20;
         }
