@@ -1,5 +1,5 @@
 //DOOR SCRIPT - Works with lockandblock:key
-// Uses coordinate-based pairing (no data stored on door)
+// Uses merged keyRegistry structure
 
 function interact(t){
     t.setCanceled(true);
@@ -29,19 +29,27 @@ function handleKeyInteraction(t, player, item, worldData, doorCoord){
         if(!keyID) return;
     }
     
-    // Initialize door pairing if needed
-    if(!worldData.has("doorPairingMap")){
-        worldData.put("doorPairingMap", JSON.stringify({}));
+    // Initialize registry if needed
+    if(!worldData.has("keyRegistry")){
+        worldData.put("keyRegistry", JSON.stringify({}));
     }
     
-    var doorPairingMap = JSON.parse(worldData.get("doorPairingMap"));
-    var pairedKeyID = findPairedKey(doorPairingMap, doorCoord);
+    var keyRegistry = JSON.parse(worldData.get("keyRegistry"));
+    
+    // Check if key exists in registry
+    if(!keyRegistry[keyID]){
+        player.message("§cThis key is not registered!");
+        player.message("§7Please register it at a Key Registration Block first.");
+        return;
+    }
+    
+    // Find which key (if any) is paired with this door
+    var pairedKeyID = findPairedKey(keyRegistry, doorCoord);
     
     // If door not paired, pair it with this key
     if(!pairedKeyID){
-        doorPairingMap[keyID] = doorCoord;
-        worldData.put("doorPairingMap", JSON.stringify(doorPairingMap));
-        updateKeyListDoorCoord(worldData, keyID, doorCoord);
+        keyRegistry[keyID].doorCoord = doorCoord;
+        worldData.put("keyRegistry", JSON.stringify(keyRegistry));
         
         player.message("§aDoor paired with key: §f" + item.getDisplayName());
         player.message("§7Door Location: " + doorCoord);
@@ -55,31 +63,18 @@ function handleKeyInteraction(t, player, item, worldData, doorCoord){
         player.message("§aKey matches! Door toggled.");
     } else {
         player.message("§cThis key doesn't match this door!");
-        player.message("§7This door is paired with another key");
+        player.message("§7This door is paired with Key ID: " + pairedKeyID);
     }
-}
-
-function handleLockpick(t, item){
-    if(Math.random() >= LockpickChance){
-        item.setStackSize(item.getStackSize() - 1);
-        t.block.world.playSoundAt(t.player.getPos(), "minecraft:entity.item.break", 1, 1);
-        t.player.message("§cLockpick broke!");
-        return;
-    }
-    
-    t.block.setOpen(true);
-    t.block.timers.forceStart(1, TimeOpen * 3, false);
-    t.player.message("§aLockpicked successfully!");
 }
 
 function handleAdminTool(t, player, worldData, doorCoord){
-    if(!worldData.has("doorPairingMap")){
+    if(!worldData.has("keyRegistry")){
         player.message("§7Door is not paired - Location: " + doorCoord);
         return;
     }
     
-    var doorPairingMap = JSON.parse(worldData.get("doorPairingMap"));
-    var pairedKey = findPairedKey(doorPairingMap, doorCoord);
+    var keyRegistry = JSON.parse(worldData.get("keyRegistry"));
+    var pairedKey = findPairedKey(keyRegistry, doorCoord);
     
     if(!pairedKey){
         player.message("§7Door is not paired - Location: " + doorCoord);
@@ -89,12 +84,12 @@ function handleAdminTool(t, player, worldData, doorCoord){
     player.message("§e=== Door Info ===");
     player.message("§aLocation: §f" + doorCoord);
     player.message("§aPaired Key ID: §f" + pairedKey);
+    player.message("§aKey Name: §f" + keyRegistry[pairedKey].name);
     player.message("§7Sneak + Right-click to unpair");
     
     if(player.isSneaking()){
-        delete doorPairingMap[pairedKey];
-        worldData.put("doorPairingMap", JSON.stringify(doorPairingMap));
-        updateKeyListDoorCoord(worldData, pairedKey, null);
+        keyRegistry[pairedKey].doorCoord = null;
+        worldData.put("keyRegistry", JSON.stringify(keyRegistry));
         player.message("§cDoor unpaired! Next key will pair with it.");
     }
 }
@@ -119,36 +114,17 @@ function getDoorCoord(pos){
     return pos.getX() + "," + pos.getY() + "," + pos.getZ();
 }
 
-function findPairedKey(doorPairingMap, doorCoord){
-    for(var keyID in doorPairingMap){
-        if(doorPairingMap[keyID] == doorCoord){
+function findPairedKey(keyRegistry, doorCoord){
+    for(var keyID in keyRegistry){
+        if(keyRegistry[keyID].doorCoord == doorCoord){
             return keyID;
         }
     }
     return null;
 }
 
-function updateKeyListDoorCoord(worldData, keyID, doorCoord){
-    if(!worldData.has("globalKeyList")) return;
-    
-    var keyList = JSON.parse(worldData.get("globalKeyList"));
-    for(var i = 0; i < keyList.length; i++){
-        if(keyList[i].id == keyID){
-            keyList[i].doorCoord = doorCoord;
-            worldData.put("globalKeyList", JSON.stringify(keyList));
-            return;
-        }
-    }
-}
-
 function toggleDoor(block){
     block.setOpen(!block.getOpen());
-}
-
-function cleanNbtJson(nbtString){
-    if(!nbtString) return "{}";
-    return nbtString.replace(/:\s*(-?\d+)[bBsSlLfFdD]/g, ": $1")
-                    .replace(/:\s*(-?\d+\.\d+)[fFdD]/g, ": $1");
 }
 
 function registerNewKey(t, player, item, worldData){
@@ -174,14 +150,18 @@ function registerNewKey(t, player, item, worldData){
     
     player.message("§aKey auto-registered! ID: §f" + keyID);
     
-    // Add to global key list
-    if(!worldData.has("globalKeyList")){
-        worldData.put("globalKeyList", JSON.stringify([]));
+    // Add to merged registry
+    if(!worldData.has("keyRegistry")){
+        worldData.put("keyRegistry", JSON.stringify({}));
     }
     
-    var keyList = JSON.parse(worldData.get("globalKeyList"));
-    keyList.push({name: item.getDisplayName(), id: keyID, doorCoord: null});
-    worldData.put("globalKeyList", JSON.stringify(keyList));
+    var keyRegistry = JSON.parse(worldData.get("keyRegistry"));
+    keyRegistry[keyID] = {
+        name: item.getDisplayName(),
+        id: keyID,
+        doorCoord: null
+    };
+    worldData.put("keyRegistry", JSON.stringify(keyRegistry));
     
     return keyID;
 }
