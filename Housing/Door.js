@@ -58,14 +58,12 @@ function handleKeyInteraction(t, player, item, worldData, doorCoord){
         worldData.put("keyRegistry", JSON.stringify(keyRegistry));
         
         toggleDoor(t.block);
-        player.message("§aKey matches! Door toggled.");
         return;
     }
     
     // If door is paired with a DIFFERENT key, reject
     if(pairedKeyID && pairedKeyID != keyID){
         player.message("§cThis door is already paired with another key!");
-        player.message("§7Paired with Key ID: " + pairedKeyID);
         return;
     }
     
@@ -103,25 +101,6 @@ function handleAdminTool(t, player, worldData, doorCoord){
     player.message("§aPaired Key ID: §f" + pairedKeyID);
     player.message("§aKey Name: §f" + pairedKey.name);
     player.message("§aTotal doors on key: §f" + pairedKey.doorCoords.length);
-    player.message("§7Sneak + Right-click to unpair this door");
-    
-    if(player.isSneaking()){
-        // Remove this specific door from the key's door list
-        var doorIndex = -1;
-        for(var i = 0; i < pairedKey.doorCoords.length; i++){
-            if(pairedKey.doorCoords[i] == doorCoord){
-                doorIndex = i;
-                break;
-            }
-        }
-        
-        if(doorIndex !== -1){
-            keyRegistry[pairedKeyID].doorCoords.splice(doorIndex, 1);
-            worldData.put("keyRegistry", JSON.stringify(keyRegistry));
-            player.message("§cDoor unpaired from key!");
-            player.message("§7Remaining doors on key: " + keyRegistry[pairedKeyID].doorCoords.length);
-        }
-    }
 }
 
 function getKeyID(itemNbt){
