@@ -194,6 +194,7 @@ function registerNewKey(t, player, item, worldData){
         name: item.getDisplayName(),
         id: keyID,
         doorCoords: [],
+        firstBuyer: null,
         lastUser: null
     };
     worldData.put("keyRegistry", JSON.stringify(keyRegistry));
