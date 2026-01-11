@@ -320,7 +320,6 @@ function customGuiSlotClicked(event) {
             if(keyRegistry[keyID]){
                 keyRegistry[keyID].firstBuyer = player.getDisplayName();
                 worldData.put("keyRegistry", JSON.stringify(keyRegistry));
-                player.message("§aYou are the first buyer of this key!");
                 
                 // Remove the key from the shop slot (make it unavailable for future purchases)
                 mySlots[slotIndex].setStack(player.world.createItem("minecraft:air", 1));
