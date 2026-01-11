@@ -43,28 +43,36 @@ function handleKeyInteraction(t, player, item, worldData, doorCoord){
         return;
     }
     
-    // Find which key (if any) is paired with this door
-    var pairedKeyID = findPairedKey(keyRegistry, doorCoord);
-    
-    // If door not paired, pair it with this key
-    if(!pairedKeyID){
-        keyRegistry[keyID].doorCoord = doorCoord;
-        worldData.put("keyRegistry", JSON.stringify(keyRegistry));
-        
-        player.message("§aDoor paired with key: §f" + item.getDisplayName());
-        player.message("§7Door Location: " + doorCoord);
-        toggleDoor(t.block);
-        return;
+    // Ensure doorCoords is an array
+    if(!keyRegistry[keyID].doorCoords){
+        keyRegistry[keyID].doorCoords = [];
     }
     
-    // Check if key matches
+    // Check if this door is already paired with ANY key
+    var pairedKeyID = findPairedKey(keyRegistry, doorCoord);
+    
+    // If door is already paired with THIS key, just toggle it
     if(pairedKeyID == keyID){
         toggleDoor(t.block);
         player.message("§aKey matches! Door toggled.");
-    } else {
-        player.message("§cThis key doesn't match this door!");
-        player.message("§7This door is paired with Key ID: " + pairedKeyID);
+        return;
     }
+    
+    // If door is paired with a DIFFERENT key, reject
+    if(pairedKeyID && pairedKeyID != keyID){
+        player.message("§cThis door is already paired with another key!");
+        player.message("§7Paired with Key ID: " + pairedKeyID);
+        return;
+    }
+    
+    // Door is unpaired, add it to this key's door list
+    keyRegistry[keyID].doorCoords.push(doorCoord);
+    worldData.put("keyRegistry", JSON.stringify(keyRegistry));
+    
+    player.message("§aDoor paired with key: §f" + item.getDisplayName());
+    player.message("§7Door Location: " + doorCoord);
+    player.message("§7Total doors on this key: " + keyRegistry[keyID].doorCoords.length);
+    toggleDoor(t.block);
 }
 
 function handleAdminTool(t, player, worldData, doorCoord){
@@ -74,23 +82,38 @@ function handleAdminTool(t, player, worldData, doorCoord){
     }
     
     var keyRegistry = JSON.parse(worldData.get("keyRegistry"));
-    var pairedKey = findPairedKey(keyRegistry, doorCoord);
+    var pairedKeyID = findPairedKey(keyRegistry, doorCoord);
     
-    if(!pairedKey){
+    if(!pairedKeyID){
         player.message("§7Door is not paired - Location: " + doorCoord);
         return;
     }
     
+    var pairedKey = keyRegistry[pairedKeyID];
+    
     player.message("§e=== Door Info ===");
     player.message("§aLocation: §f" + doorCoord);
-    player.message("§aPaired Key ID: §f" + pairedKey);
-    player.message("§aKey Name: §f" + keyRegistry[pairedKey].name);
-    player.message("§7Sneak + Right-click to unpair");
+    player.message("§aPaired Key ID: §f" + pairedKeyID);
+    player.message("§aKey Name: §f" + pairedKey.name);
+    player.message("§aTotal doors on key: §f" + pairedKey.doorCoords.length);
+    player.message("§7Sneak + Right-click to unpair this door");
     
     if(player.isSneaking()){
-        keyRegistry[pairedKey].doorCoord = null;
-        worldData.put("keyRegistry", JSON.stringify(keyRegistry));
-        player.message("§cDoor unpaired! Next key will pair with it.");
+        // Remove this specific door from the key's door list
+        var doorIndex = -1;
+        for(var i = 0; i < pairedKey.doorCoords.length; i++){
+            if(pairedKey.doorCoords[i] == doorCoord){
+                doorIndex = i;
+                break;
+            }
+        }
+        
+        if(doorIndex !== -1){
+            keyRegistry[pairedKeyID].doorCoords.splice(doorIndex, 1);
+            worldData.put("keyRegistry", JSON.stringify(keyRegistry));
+            player.message("§cDoor unpaired from key!");
+            player.message("§7Remaining doors on key: " + keyRegistry[pairedKeyID].doorCoords.length);
+        }
     }
 }
 
@@ -116,8 +139,12 @@ function getDoorCoord(pos){
 
 function findPairedKey(keyRegistry, doorCoord){
     for(var keyID in keyRegistry){
-        if(keyRegistry[keyID].doorCoord == doorCoord){
-            return keyID;
+        if(keyRegistry[keyID].doorCoords){
+            for(var i = 0; i < keyRegistry[keyID].doorCoords.length; i++){
+                if(keyRegistry[keyID].doorCoords[i] == doorCoord){
+                    return keyID;
+                }
+            }
         }
     }
     return null;
@@ -159,7 +186,7 @@ function registerNewKey(t, player, item, worldData){
     keyRegistry[keyID] = {
         name: item.getDisplayName(),
         id: keyID,
-        doorCoord: null
+        doorCoords: []
     };
     worldData.put("keyRegistry", JSON.stringify(keyRegistry));
     
