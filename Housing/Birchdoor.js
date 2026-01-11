@@ -1,6 +1,8 @@
 //DOOR SCRIPT - Works with lockandblock:key
 // Uses merged keyRegistry structure
-
+function init(event){
+    event.block.setBlockModel("minecraft:birch_door");
+}
 function interact(t){
     t.setCanceled(true);
     
