@@ -53,6 +53,10 @@ function handleKeyInteraction(t, player, item, worldData, doorCoord){
     
     // If door is already paired with THIS key, just toggle it
     if(pairedKeyID == keyID){
+        // Record last user who successfully opened the door
+        keyRegistry[keyID].lastUser = player.getDisplayName();
+        worldData.put("keyRegistry", JSON.stringify(keyRegistry));
+        
         toggleDoor(t.block);
         player.message("§aKey matches! Door toggled.");
         return;
@@ -67,6 +71,9 @@ function handleKeyInteraction(t, player, item, worldData, doorCoord){
     
     // Door is unpaired, add it to this key's door list
     keyRegistry[keyID].doorCoords.push(doorCoord);
+    
+    // Record last user when pairing
+    keyRegistry[keyID].lastUser = player.getDisplayName();
     worldData.put("keyRegistry", JSON.stringify(keyRegistry));
     
     player.message("§aDoor paired with key: §f" + item.getDisplayName());
@@ -186,7 +193,8 @@ function registerNewKey(t, player, item, worldData){
     keyRegistry[keyID] = {
         name: item.getDisplayName(),
         id: keyID,
-        doorCoords: []
+        doorCoords: [],
+        lastUser: null
     };
     worldData.put("keyRegistry", JSON.stringify(keyRegistry));
     
