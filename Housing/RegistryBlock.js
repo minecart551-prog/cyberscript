@@ -2,11 +2,16 @@
 // Works with regular item: lockandblock:key
 
 var guiRef = null;
+var lastBlock = null;
+var lastAPI = null;
 
 function interact(t){
     var player = t.player;
     var handItem = player.getMainhandItem();
     var worldData = t.block.world.getStoreddata();
+    
+    lastBlock = t.block;
+    lastAPI = t.API;
     
     // Initialize world data
     if(!worldData.has("globalKeyList")){
@@ -37,7 +42,7 @@ function interact(t){
             updateKeyInList(keyList, existingKeyID, keyName, doorPairingMap);
             worldData.put("globalKeyList", JSON.stringify(keyList));
             
-            openKeyListGUI(t, player, keyList);
+            renderKeyListGUI(player, lastAPI);
             return;
         }
         
@@ -64,7 +69,7 @@ function interact(t){
         worldData.put("globalKeyList", JSON.stringify(keyList));
     }
     
-    openKeyListGUI(t, player, keyList);
+    renderKeyListGUI(player, lastAPI);
 }
 
 function getKeyID(itemNbt){
@@ -95,28 +100,25 @@ function cleanNbtJson(nbtString){
                     .replace(/:\s*(-?\d+\.\d+)[fFdD]/g, ": $1");
 }
 
-function openKeyListGUI(t, player, keyList){
-    if(guiRef){
-        try { player.closeGui(); } catch(e){}
-        guiRef = null;
-    }
+function renderKeyListGUI(player, api){
+    var worldData = player.world.getStoreddata();
+    var keyList = JSON.parse(worldData.get("globalKeyList"));
     
-    guiRef = t.API.createCustomGui(300, 220, 0, false, player);
+    guiRef = api.createCustomGui(300, 220, 0, false, player);
+    
     guiRef.addLabel(0, "§l§nRegistered Keys", 10, 5, 1.0, 1.0);
     
     if(keyList.length == 0){
         guiRef.addLabel(3, "§7No keys registered yet", 10, 25, 1.0, 1.0);
     } else {
         var yPos = 25;
-        var displayLimit = Math.min(keyList.length, 9); // Reduced to 9 to fit buttons
+        var displayLimit = Math.min(keyList.length, 9);
         
         for(var i = 0; i < displayLimit; i++){
             var key = keyList[i];
             var doorText = key.doorCoord ? "§7Door: §f" + key.doorCoord : "§7Door: §cNot paired";
             
-            // Delete button for each key (buttonId = 100 + i)
             guiRef.addButton(100 + i, "§cX", 10, yPos, 15, 15);
-            
             guiRef.addLabel(10 + i, "§e" + key.name + " §7(ID: " + key.id + ")", 30, yPos, 0.7, 0.7);
             guiRef.addLabel(30 + i, doorText, 30, yPos + 8, 0.6, 0.6);
             yPos += 20;
@@ -133,10 +135,32 @@ function openKeyListGUI(t, player, keyList){
     player.showCustomGui(guiRef);
 }
 
+function deleteKey(keyIndex, player, api){
+    var worldData = player.world.getStoreddata();
+    var keyList = JSON.parse(worldData.get("globalKeyList"));
+    
+    if(keyIndex < keyList.length){
+        var deletedKey = keyList[keyIndex];
+        var keyID = deletedKey.id;
+        
+        // Remove key from list
+        keyList.splice(keyIndex, 1);
+        worldData.put("globalKeyList", JSON.stringify(keyList));
+        
+        // Remove door pairing for this key
+        var doorPairingMap = JSON.parse(worldData.get("doorPairingMap"));
+        delete doorPairingMap[keyID];
+        worldData.put("doorPairingMap", JSON.stringify(doorPairingMap));
+        
+        player.message("§cDeleted key: §f" + deletedKey.name + " §7(ID: " + keyID + ")");
+        
+        // Re-render GUI with updated list
+        renderKeyListGUI(player, api);
+    }
+}
+
 function customGuiButton(t){
     var player = t.player;
-    
-    player.message("§7[Debug] Button clicked: " + t.buttonId);
     
     if(t.buttonId == 1){
         player.closeGui();
@@ -152,42 +176,14 @@ function customGuiButton(t){
         worldData.put("keyCounter", "0");
         
         player.message("§c§lAll key and door data has been deleted!");
-        player.closeGui();
-        guiRef = null;
+        
+        renderKeyListGUI(player, lastAPI);
         return;
     }
     
     if(t.buttonId >= 100 && t.buttonId < 200){
-        // Delete individual key (buttonId 100-199)
         var keyIndex = t.buttonId - 100;
-        var worldData = player.world.getStoreddata();
-        var keyList = JSON.parse(worldData.get("globalKeyList"));
-        
-        player.message("§7[Debug] Button " + t.buttonId + " clicked, index: " + keyIndex + ", list length: " + keyList.length);
-        
-        if(keyIndex < keyList.length){
-            var deletedKey = keyList[keyIndex];
-            var keyID = deletedKey.id;
-            
-            // Remove key from list
-            keyList.splice(keyIndex, 1);
-            worldData.put("globalKeyList", JSON.stringify(keyList));
-            
-            // Remove door pairing for this key
-            var doorPairingMap = JSON.parse(worldData.get("doorPairingMap"));
-            delete doorPairingMap[keyID];
-            worldData.put("doorPairingMap", JSON.stringify(doorPairingMap));
-            
-            player.message("§cDeleted key: §f" + deletedKey.name + " §7(ID: " + keyID + ")");
-            player.message("§7[Debug] New list length: " + keyList.length);
-            
-            // Read fresh data and recreate GUI
-            var freshKeyList = JSON.parse(worldData.get("globalKeyList"));
-            player.message("§7[Debug] Fresh list length: " + freshKeyList.length);
-            openKeyListGUI(t, player, freshKeyList);
-        } else {
-            player.message("§c[Debug] Index out of bounds!");
-        }
+        deleteKey(keyIndex, player, lastAPI);
     }
 }
 
