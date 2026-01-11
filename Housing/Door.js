@@ -1,14 +1,8 @@
 //DOOR SCRIPT - Works with lockandblock:key
 // Uses coordinate-based pairing (no data stored on door)
 
-var lockpick = "minecraft:stick";
-var TimeOpen = 40; // ticks
-var LockpickChance = 0.1;
-
 function interact(t){
     t.setCanceled(true);
-    
-    if(t.block.getOpen()) return;
     
     var player = t.player;
     var item = player.getMainhandItem();
@@ -21,12 +15,6 @@ function interact(t){
         return;
     }
     
-    // Handle lockpick
-    if(item && !item.isEmpty() && item.getName() == lockpick && item.getDisplayName() == '"Lockpick"'){
-        handleLockpick(t, item);
-        return;
-    }
-    
     // Admin bedrock tool - show/reset pairing
     if(item && !item.isEmpty() && item.getName() == "minecraft:bedrock"){
         handleAdminTool(t, player, worldData, doorCoord);
@@ -36,10 +24,9 @@ function interact(t){
 function handleKeyInteraction(t, player, item, worldData, doorCoord){
     var keyID = getKeyID(item.getItemNbt());
     
-    // If key is not registered, register it now
     if(!keyID){
         keyID = registerNewKey(t, player, item, worldData);
-        if(!keyID) return; // Registration failed
+        if(!keyID) return;
     }
     
     // Initialize door pairing if needed
@@ -58,14 +45,14 @@ function handleKeyInteraction(t, player, item, worldData, doorCoord){
         
         player.message("§aDoor paired with key: §f" + item.getDisplayName());
         player.message("§7Door Location: " + doorCoord);
-        openDoor(t.block);
+        toggleDoor(t.block);
         return;
     }
     
     // Check if key matches
     if(pairedKeyID == keyID){
-        openDoor(t.block);
-        player.message("§aKey matches! Door opened.");
+        toggleDoor(t.block);
+        player.message("§aKey matches! Door toggled.");
     } else {
         player.message("§cThis key doesn't match this door!");
         player.message("§7This door is paired with another key");
@@ -122,6 +109,12 @@ function getKeyID(itemNbt){
     }
 }
 
+function cleanNbtJson(nbtString){
+    if(!nbtString) return "{}";
+    return nbtString.replace(/:\s*(-?\d+)[bBsSlLfFdD]/g, ": $1")
+                    .replace(/:\s*(-?\d+\.\d+)[fFdD]/g, ": $1");
+}
+
 function getDoorCoord(pos){
     return pos.getX() + "," + pos.getY() + "," + pos.getZ();
 }
@@ -148,9 +141,8 @@ function updateKeyListDoorCoord(worldData, keyID, doorCoord){
     }
 }
 
-function openDoor(block){
-    block.setOpen(true);
-    block.timers.forceStart(1, TimeOpen, false);
+function toggleDoor(block){
+    block.setOpen(!block.getOpen());
 }
 
 function cleanNbtJson(nbtString){
@@ -166,10 +158,9 @@ function registerNewKey(t, player, item, worldData){
     }
     
     // Generate new sequential ID
-    var keyCounter = parseInt(worldData.get("keyCounter"));
-    keyCounter++;
+    var keyCounter = parseInt(worldData.get("keyCounter")) + 1;
     var keyID = keyCounter.toString();
-    worldData.put("keyCounter", keyCounter.toString());
+    worldData.put("keyCounter", keyID);
     
     // Create new key with ID in NBT
     var itemNbt = item.getItemNbt();
