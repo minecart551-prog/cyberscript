@@ -53,6 +53,7 @@ function interact(t){
             name: keyName,
             id: keyID,
             doorCoords: [],
+            firstBuyer: null,
             lastUser: null
         };
         worldData.put("keyRegistry", JSON.stringify(keyRegistry));
@@ -116,10 +117,24 @@ function renderKeyListGUI(player, api){
         for(var i = 0; i < displayLimit; i++){
             var key = filteredKeys[i];
             
-            // Build key name with last user
-            var keyNameText = "§e" + key.name + " §7(ID: " + key.id + ")";
+            // Build key name with firstBuyer and lastUser in format: name (ID: x) buyer, user
+            var keyNameText = "§e" + key.name + " §7(ID: " + key.id + ") §f";
+            
+            // Add firstBuyer (or "null" if none)
+            if(key.firstBuyer){
+                keyNameText += key.firstBuyer;
+            } else {
+                keyNameText += "null";
+            }
+            
+            // Add comma separator
+            keyNameText += "§7, §f";
+            
+            // Add lastUser (or "null" if none)
             if(key.lastUser){
-                keyNameText += " §f" + key.lastUser;
+                keyNameText += key.lastUser;
+            } else {
+                keyNameText += "null";
             }
             
             // Build door display text
