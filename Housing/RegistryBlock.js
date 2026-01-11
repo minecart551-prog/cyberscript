@@ -48,11 +48,11 @@ function interact(t){
         player.message("§aAssigned Key ID: §f" + keyID);
         player.message("§aKey registered: §f" + keyName);
         
-        // Add to merged registry
+        // Add to merged registry with array for multiple doors
         keyRegistry[keyID] = {
             name: keyName,
             id: keyID,
-            doorCoord: null
+            doorCoords: []
         };
         worldData.put("keyRegistry", JSON.stringify(keyRegistry));
     }
@@ -114,7 +114,17 @@ function renderKeyListGUI(player, api){
         
         for(var i = 0; i < displayLimit; i++){
             var key = filteredKeys[i];
-            var doorText = key.doorCoord ? "§7Door: §f" + key.doorCoord : "§7Door: §cNot paired";
+            
+            // Build door display text
+            var doorText = "";
+            if(!key.doorCoords || key.doorCoords.length == 0){
+                doorText = "§7Doors: §cNone paired";
+            } else if(key.doorCoords.length == 1){
+                doorText = "§7Door: §f" + key.doorCoords[0];
+            } else {
+                // Join multiple coordinates with | separator
+                doorText = "§7Doors: §f" + key.doorCoords.join(" §7|§f ");
+            }
             
             // Use keyID directly for button ID (converted to number)
             var buttonID = 100 + parseInt(key.id);
@@ -141,13 +151,13 @@ function deleteKey(keyID, player, api){
     if(keyRegistry[keyID]){
         var deletedKey = keyRegistry[keyID];
         
-        // Remove key from registry (this also removes the door pairing)
+        // Remove key from registry (this also removes all door pairings)
         delete keyRegistry[keyID];
         worldData.put("keyRegistry", JSON.stringify(keyRegistry));
         
         player.message("§cDeleted key: §f" + deletedKey.name + " §7(ID: " + keyID + ")");
-        if(deletedKey.doorCoord){
-            player.message("§7Door unpaired: " + deletedKey.doorCoord);
+        if(deletedKey.doorCoords && deletedKey.doorCoords.length > 0){
+            player.message("§7Unpaired from " + deletedKey.doorCoords.length + " door(s)");
         }
         
         // Re-render GUI with updated list (keep search query)
