@@ -1,6 +1,3 @@
-// ===============================
-// Chunk Map GUI - 5x5 viewport on 10x10 grid
-// ===============================
 
 // Chunk map variables
 var guiRef;                 
@@ -8,7 +5,7 @@ var mySlots = [];
 var selectedSlots = [];      // Stores global chunk positions
 var slotHighlights = {};
 var viewportRows = 8;
-var viewportCols = 16;
+var viewportCols = 18;
 var mapRows = 100;
 var mapCols = 100;
 var slotSize = 18;
@@ -144,10 +141,10 @@ function renderChunkMapGui(player, api){
     }
 
     // Add navigation buttons - compass pattern with empty center
-    var navY = 170;  // Lower position
-    var navCenterX = 88;  // Center of screen
+    var navY = 165;  // Lower position
+    var navCenterX = 275;  // Center of screen
     var btnSize = 20;
-    var btnGap = 24;  // Gap between buttons to leave center empty
+    var btnGap = 19;  // Gap between buttons to leave center empty
     
     guiRef.addButton(ID_UP_BUTTON, "↑", navCenterX, navY - btnGap, btnSize, btnSize);        // North
     guiRef.addButton(ID_DOWN_BUTTON, "↓", navCenterX, navY + btnGap, btnSize, btnSize);      // South
@@ -157,9 +154,9 @@ function renderChunkMapGui(player, api){
     guiRef.addButton(ID_CLEAR_BUTTON, "Clear", 200, -15, 40, 20);
     
     // Add search field and button
-    guiRef.addLabel(2, "§7Jump to X,Z:", -70, -15, 1.0, 1.0);
-    guiRef.addTextField(ID_SEARCH_FIELD, -70, 0, 80, 18).setText("");
-    guiRef.addButton(ID_SEARCH_BUTTON, "Go", 15, 0, 30, 18);
+    guiRef.addLabel(2, "§7Jump to X,Z:", -70, -32, 1.0, 1.0);
+    guiRef.addTextField(ID_SEARCH_FIELD, -70, -20, 80, 18).setText("");
+    guiRef.addButton(ID_SEARCH_BUTTON, "Go", 13, -20, 30, 18);
     
     // Display viewport info
     var endX = viewportX + viewportCols - 1;
