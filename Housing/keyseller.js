@@ -217,6 +217,19 @@ function customGuiSlotClicked(event) {
         var boughtItem = mySlots[slotIndex].getStack();
         if(!boughtItem || boughtItem.isEmpty()) return;
 
+        // --- Check if player has already purchased from this NPC ---
+        var npcData = lastNpc.getStoreddata();
+        var purchaseHistory = npcData.has("PurchaseHistory") 
+            ? JSON.parse(npcData.get("PurchaseHistory"))
+            : {};
+        
+        var playerName = player.getDisplayName();
+        if(purchaseHistory[playerName]){
+            player.message("§cYou have already purchased from this seller!");
+            player.message("§7Each player can only buy once per seller.");
+            return;
+        }
+
         // --- Check if it's a key item ---
         var isKey = (boughtItem.getName() === "lockandblock:key");
         var keyID = null;
@@ -308,6 +321,15 @@ function customGuiSlotClicked(event) {
         var giveCopy = player.world.createItemFromNbt(boughtItem.getItemNbt());
         player.giveItem(giveCopy);
         
+        // Record that this player has purchased from this NPC
+        purchaseHistory[playerName] = {
+            timestamp: new Date().getTime(),
+            itemName: boughtItem.getDisplayName(),
+            isKey: isKey,
+            keyID: keyID
+        };
+        npcData.put("PurchaseHistory", JSON.stringify(purchaseHistory));
+        
         // If it's a key, record firstBuyer and remove from shop
         if(isKey && keyID){
             var worldData = player.world.getStoreddata();
@@ -320,6 +342,7 @@ function customGuiSlotClicked(event) {
             if(keyRegistry[keyID]){
                 keyRegistry[keyID].firstBuyer = player.getDisplayName();
                 worldData.put("keyRegistry", JSON.stringify(keyRegistry));
+                player.message("§aYou are the first buyer of this key!");
                 
                 // Remove the key from the shop slot (make it unavailable for future purchases)
                 mySlots[slotIndex].setStack(player.world.createItem("minecraft:air", 1));
