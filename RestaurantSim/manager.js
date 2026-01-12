@@ -255,8 +255,8 @@ function renderPlayerGui(player, api) {
     guiRef.addLabel(ID_JOB_LABEL, "Restaurant Menu", 40, -110, 156, 12).setColor(0xFFFFFF);
 
     mySlots = [];
-    slotHighlights = {};
-    nextLineId = 1000;
+    slotHighlights = {}; // Reset highlights for new GUI
+    nextLineId = 1000; // Reset line ID counter
 
     for (var i = 0; i < slotPositions.length; i++) {
         var pos = slotPositions[i];
@@ -270,6 +270,7 @@ function renderPlayerGui(player, api) {
         mySlots.push(slot);
     }
 
+    // Draw highlights for selected slots
     selectedSlots.forEach(function(idx) {
         if (idx >= 0 && idx < mySlots.length) drawHighlight(idx);
     });
@@ -282,8 +283,16 @@ function renderPlayerGui(player, api) {
 }
 
 function drawHighlight(index) {
-    var pos = slotPositions[index],
-        x = pos.x, y = pos.y, w = 18, h = 18;
+    // Don't draw if GUI not available
+    if (!guiRef) return;
+    
+    // Check if already highlighted in the current slotHighlights object
+    if (slotHighlights[index]) return;
+    
+    var pos = slotPositions[index];
+    if (!pos) return; // Safety check
+    
+    var x = pos.x, y = pos.y, w = 18, h = 18;
     slotHighlights[index] = [
         guiRef.addColoredLine(nextLineId++, x, y, x + w, y, 0xADD8E6, 2),
         guiRef.addColoredLine(nextLineId++, x, y + h, x + w, y + h, 0xADD8E6, 2),
@@ -292,12 +301,20 @@ function drawHighlight(index) {
     ];
 }
 
-function toggleHighlight(index, player, api) {
+function toggleHighlight(index, player) {
+    if (!guiRef) return;
+    
     var pos = selectedSlots.indexOf(index);
-    if (pos !== -1) selectedSlots.splice(pos, 1);
-    else selectedSlots.push(index);
+    if (pos !== -1) {
+        // Slot already selected - do nothing (don't remove)
+        return;
+    }
+    
+    // Add to selectedSlots and draw highlight
+    selectedSlots.push(index);
     player.getStoreddata().put("SelectedMenuSlots", JSON.stringify(selectedSlots));
-    renderPlayerGui(player, api);
+    drawHighlight(index);
+    if (guiRef) guiRef.update();
 }
 
 function openPricingGui(player, api) {
@@ -541,7 +558,7 @@ function customGuiSlotClicked(event) {
         }
         
         if (index === -1) return;
-        toggleHighlight(index, player, event.API);
+        toggleHighlight(index, player);
     }
 }
 
@@ -612,6 +629,7 @@ function customGuiButton(event) {
     
     if (event.buttonId === ID_CLEAR_MENU_BUTTON) {
         if (viewMode === "menu" && !isAdminGui) {
+            // Clear all selections and recreate GUI
             selectedSlots = [];
             player.getStoreddata().put("SelectedMenuSlots", JSON.stringify(selectedSlots));
             renderPlayerGui(player, api);
@@ -719,6 +737,7 @@ function customGuiButton(event) {
 function customGuiClosed(event) {
     if (viewMode === "pricing") {
         savePricingPageItems();
+        guiRef = null;
     } else if (viewMode === "menu" && isAdminGui) {
         var gui = event.gui;
         var npcData = lastNpc.getStoreddata();
@@ -744,8 +763,12 @@ function customGuiClosed(event) {
             saveChairList(lastNpc, parsed);
             chairsList = parsed;
         }
+        guiRef = null;
+    } else if (viewMode === "menu" && !isAdminGui) {
+        // Player menu - don't clear guiRef as it might be recreating
+        // Only clear if we're truly closing (not recreating)
+        // guiRef will be overwritten when new GUI is created
     }
-    guiRef = null;
 }
 
 function tick(event) {
