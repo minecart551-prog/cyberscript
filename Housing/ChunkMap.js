@@ -1,24 +1,34 @@
-
 // Chunk map variables
 var guiRef;                 
 var mySlots = [];           
-var selectedSlots = [];      // Stores global chunk positions
+var selectedChunks = [];     // Stores absolute chunk coordinates {chunkX, chunkZ}
 var slotHighlights = {};
 var viewportRows = 8;
 var viewportCols = 18;
-var mapRows = 100;
-var mapCols = 100;
+
+// Define your world boundaries (block coordinates)
+var WORLD_MIN_X = 0;      // Minimum X block coordinate
+var WORLD_MIN_Z = 0;      // Minimum Z block coordinate
+var WORLD_MAX_X = 1599;   // Maximum X block coordinate
+var WORLD_MAX_Z = 1599;   // Maximum Z block coordinate
+
+// Calculated chunk boundaries (do not modify these directly)
+var minChunkX = 0;
+var minChunkZ = 0;
+var mapCols = 0;  // Total columns (X direction)
+var mapRows = 0;  // Total rows (Z direction)
+
 var slotSize = 18;
 var slotPadding = 0;
 var offsetX = -80;
-var offsetY = 10;  // Moved up from 36
+var offsetY = 10;
 var storedSlotItems = [];
 var lastBlock = null;
 var nextLineId = 1000;
 
-// Viewport position on the map
-var viewportX = 0;  // Top-left X position on map
-var viewportY = 0;  // Top-left Y position on map
+// Viewport position on the map (in chunk coordinates relative to minChunk)
+var viewportX = 0;
+var viewportY = 0;
 
 var Grid_GUI = 100;
 var ID_CLEAR_BUTTON = 50;
@@ -29,12 +39,30 @@ var ID_RIGHT_BUTTON = 54;
 var ID_CHUNK_INFO_LABEL = 55;
 var ID_SEARCH_FIELD = 56;
 var ID_SEARCH_BUTTON = 57;
+var ID_TIME_DAY_BUTTON = 58;
 
-var currentChunkInfo = "";  // Store current chunk info
+var currentChunkInfo = "";
+
+// Global key for shared selection data (stores absolute chunk coordinates)
+var GLOBAL_SELECTION_KEY = "chunkmap_selected";
+
+// ===== Initialize chunk boundaries =====
+function calculateChunkBoundaries() {
+    // Round down to chunk boundaries (each chunk is 16 blocks)
+    minChunkX = Math.floor(WORLD_MIN_X / 16);
+    minChunkZ = Math.floor(WORLD_MIN_Z / 16);
+    var maxChunkX = Math.floor(WORLD_MAX_X / 16);
+    var maxChunkZ = Math.floor(WORLD_MAX_Z / 16);
+    
+    // Calculate map dimensions in chunks
+    mapCols = maxChunkX - minChunkX + 1;  // +1 because inclusive
+    mapRows = maxChunkZ - minChunkZ + 1;
+}
 
 // ===== Set block model (optional - customize as needed) =====
 function init(e){
     // e.block.setModel("refurbished_furniture:computer");
+    calculateChunkBoundaries();
 }
 
 // ===== Right-click entry point =====
@@ -42,11 +70,12 @@ function interact(e) {
     var api = e.API;
     var p   = e.player;
     
+    calculateChunkBoundaries();
     lastBlock = e.block;
     openChunkMapGui(p, api);
 }
 
-// ===== Convert viewport slot index to global map position =====
+// ===== Convert viewport slot index to global chunk position =====
 function viewportToGlobal(slotIndex) {
     var localRow = Math.floor(slotIndex / viewportCols);
     var localCol = slotIndex % viewportCols;
@@ -55,7 +84,29 @@ function viewportToGlobal(slotIndex) {
     return globalRow * mapCols + globalCol;
 }
 
-// ===== Convert global map position to viewport slot index (or -1 if not visible) =====
+// ===== Convert global position to absolute chunk coordinates =====
+function globalPosToChunkCoords(globalPos) {
+    var relativeRow = Math.floor(globalPos / mapCols);
+    var relativeCol = globalPos % mapCols;
+    return {
+        chunkX: minChunkX + relativeCol,
+        chunkZ: minChunkZ + relativeRow
+    };
+}
+
+// ===== Convert absolute chunk coordinates to global position (or -1 if outside bounds) =====
+function chunkCoordsToGlobalPos(chunkX, chunkZ) {
+    // Check if chunk is within current bounds
+    if(chunkX < minChunkX || chunkX > minChunkX + mapCols - 1 || 
+       chunkZ < minChunkZ || chunkZ > minChunkZ + mapRows - 1){
+        return -1;  // Outside current map bounds
+    }
+    var relativeCol = chunkX - minChunkX;
+    var relativeRow = chunkZ - minChunkZ;
+    return relativeRow * mapCols + relativeCol;
+}
+
+// ===== Convert global position to viewport slot index (or -1 if not visible) =====
 function globalToViewport(globalPos) {
     var globalRow = Math.floor(globalPos / mapCols);
     var globalCol = globalPos % mapCols;
@@ -76,24 +127,25 @@ function openChunkMapGui(player, api){
     var W = lastBlock.getWorld();
     var keyPrefix = "chunkmap_" + lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ() + "_";
 
-    // Load stored items for entire 10x10 map
+    // Load stored items for entire map
     storedSlotItems = [];
     for (var i = 0; i < mapRows * mapCols; i++){
         storedSlotItems.push(W.getStoreddata().has(keyPrefix + i) ? W.getStoreddata().get(keyPrefix + i) : null);
     }
 
-    // Load selected slots (global positions)
-    if(W.getStoreddata().has(keyPrefix + "selected")){
+    // Load selected chunks from GLOBAL storage (stores absolute chunk coordinates)
+    if(W.getStoreddata().has(GLOBAL_SELECTION_KEY)){
         try {
-            selectedSlots = JSON.parse(W.getStoreddata().get(keyPrefix + "selected"));
+            var storedData = JSON.parse(W.getStoreddata().get(GLOBAL_SELECTION_KEY));
+            selectedChunks = storedData;
         } catch(e) {
-            selectedSlots = [];
+            selectedChunks = [];
         }
     } else {
-        selectedSlots = [];
+        selectedChunks = [];
     }
 
-    // Load viewport position
+    // Load viewport position (per-block storage)
     if(W.getStoreddata().has(keyPrefix + "viewportX")){
         viewportX = parseInt(W.getStoreddata().get(keyPrefix + "viewportX"));
         viewportY = parseInt(W.getStoreddata().get(keyPrefix + "viewportY"));
@@ -112,7 +164,7 @@ function renderChunkMapGui(player, api){
     guiRef = api.createCustomGui(Grid_GUI, 176, 166, false, player);
     mySlots = [];
 
-    // Create 5x5 viewport
+    // Create viewport
     for(var r=0; r<viewportRows; r++){
         for(var c=0; c<viewportCols; c++){
             var x = offsetX + c*(slotSize+slotPadding);
@@ -132,36 +184,43 @@ function renderChunkMapGui(player, api){
         }
     }
 
-    // Draw highlights for selected slots that are visible in viewport
-    for(var i = 0; i < selectedSlots.length; i++){
-        var viewportIndex = globalToViewport(selectedSlots[i]);
-        if(viewportIndex !== -1){
-            drawHighlight(viewportIndex);
+    // Draw highlights for selected chunks that are visible in viewport
+    for(var i = 0; i < selectedChunks.length; i++){
+        var chunk = selectedChunks[i];
+        var globalPos = chunkCoordsToGlobalPos(chunk.chunkX, chunk.chunkZ);
+        if(globalPos !== -1){
+            var viewportIndex = globalToViewport(globalPos);
+            if(viewportIndex !== -1){
+                drawHighlight(viewportIndex);
+            }
         }
     }
 
     // Add navigation buttons - compass pattern with empty center
-    var navY = 165;  // Lower position
-    var navCenterX = 275;  // Center of screen
+    var navY = 165;
+    var navCenterX = 275;
     var btnSize = 20;
-    var btnGap = 19;  // Gap between buttons to leave center empty
+    var btnGap = 19;
     
-    guiRef.addButton(ID_UP_BUTTON, "↑", navCenterX, navY - btnGap, btnSize, btnSize);        // North
-    guiRef.addButton(ID_DOWN_BUTTON, "↓", navCenterX, navY + btnGap, btnSize, btnSize);      // South
-    guiRef.addButton(ID_LEFT_BUTTON, "←", navCenterX - btnGap, navY, btnSize, btnSize);      // West
-    guiRef.addButton(ID_RIGHT_BUTTON, "→", navCenterX + btnGap, navY, btnSize, btnSize);     // East
+    guiRef.addButton(ID_UP_BUTTON, "↑", navCenterX, navY - btnGap, btnSize, btnSize);
+    guiRef.addButton(ID_DOWN_BUTTON, "↓", navCenterX, navY + btnGap, btnSize, btnSize);
+    guiRef.addButton(ID_LEFT_BUTTON, "←", navCenterX - btnGap, navY, btnSize, btnSize);
+    guiRef.addButton(ID_RIGHT_BUTTON, "→", navCenterX + btnGap, navY, btnSize, btnSize);
     
     guiRef.addButton(ID_CLEAR_BUTTON, "Clear", 200, -15, 40, 20);
+    
+    // Add time set day button
+    guiRef.addButton(ID_TIME_DAY_BUTTON, "Day", 245, -15, 30, 20);
     
     // Add search field and button
     guiRef.addLabel(2, "§7Jump to X,Z:", -70, -32, 1.0, 1.0);
     guiRef.addTextField(ID_SEARCH_FIELD, -70, -20, 80, 18).setText("");
     guiRef.addButton(ID_SEARCH_BUTTON, "Go", 13, -20, 30, 18);
     
-    // Display viewport info
-    var endX = viewportX + viewportCols - 1;
-    var endY = viewportY + viewportRows - 1;
-    guiRef.addLabel(1, "§7Viewport: [" + viewportX + "," + viewportY + "] to [" + endX + "," + endY + "]", 60, -15, 1.0, 1.0);
+    // Display viewport info with absolute chunk coordinates
+    var startChunk = globalPosToChunkCoords(viewportY * mapCols + viewportX);
+    var endChunk = globalPosToChunkCoords((viewportY + viewportRows - 1) * mapCols + (viewportX + viewportCols - 1));
+    guiRef.addLabel(1, "§7Viewport: [" + startChunk.chunkX + "," + startChunk.chunkZ + "] to [" + endChunk.chunkX + "," + endChunk.chunkZ + "]", 60, -15, 1.0, 1.0);
     
     // Display chunk info
     if(currentChunkInfo){
@@ -205,43 +264,50 @@ function toggleHighlight(index, player, api) {
     // Convert viewport index to global position
     var globalPos = viewportToGlobal(index);
     
-    // Calculate chunk coordinates
-    var chunkRow = Math.floor(globalPos / mapCols);
-    var chunkCol = globalPos % mapCols;
+    // Get absolute chunk coordinates
+    var chunk = globalPosToChunkCoords(globalPos);
+    var chunkX = chunk.chunkX;
+    var chunkZ = chunk.chunkZ;
     
     // Calculate block coordinates (each chunk is 16x16 blocks)
-    var minX = chunkCol * 16;
-    var minZ = chunkRow * 16;
+    var minX = chunkX * 16;
+    var minZ = chunkZ * 16;
     var maxX = minX + 15;
     var maxZ = minZ + 15;
     
     // Update chunk info display
-    currentChunkInfo = "§6Chunk [" + chunkCol + "," + chunkRow + "] §7→ Blocks: §f" + minX + "," + minZ + " §7to §f" + maxX + "," + maxZ;
+    currentChunkInfo = "§6Chunk [" + chunkX + "," + chunkZ + "] §7→ Blocks: §f" + minX + "," + minZ + " §7to §f" + maxX + "," + maxZ;
     
-    var pos = selectedSlots.indexOf(globalPos);
-    if (pos !== -1) {
-        // Remove from selectedSlots
-        selectedSlots.splice(pos, 1);
+    // Check if this chunk is already selected
+    var existingIndex = -1;
+    for(var i = 0; i < selectedChunks.length; i++){
+        if(selectedChunks[i].chunkX === chunkX && selectedChunks[i].chunkZ === chunkZ){
+            existingIndex = i;
+            break;
+        }
+    }
+    
+    if (existingIndex !== -1) {
+        // Remove from selectedChunks
+        selectedChunks.splice(existingIndex, 1);
         
-        // Save updated selection
+        // Save updated selection to GLOBAL storage
         if(lastBlock){
             var W = lastBlock.getWorld();
-            var keyPrefix = "chunkmap_" + lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ() + "_";
-            W.getStoreddata().put(keyPrefix + "selected", JSON.stringify(selectedSlots));
+            W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
         }
         
-        // Recreate GUI to properly remove highlight and rebuild others (also updates chunk info)
+        // Recreate GUI to properly remove highlight and rebuild others
         renderChunkMapGui(player, api);
     } else {
-        // Add to selectedSlots and draw highlight
-        selectedSlots.push(globalPos);
+        // Add to selectedChunks and draw highlight
+        selectedChunks.push({chunkX: chunkX, chunkZ: chunkZ});
         drawHighlight(index);
         
-        // Save selected slots
+        // Save selected chunks to GLOBAL storage
         if(lastBlock){
             var W = lastBlock.getWorld();
-            var keyPrefix = "chunkmap_" + lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ() + "_";
-            W.getStoreddata().put(keyPrefix + "selected", JSON.stringify(selectedSlots));
+            W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
         }
         
         // Update the chunk info label without recreating GUI
@@ -284,16 +350,21 @@ function customGuiButton(e){
     
     if(e.buttonId === ID_CLEAR_BUTTON){
         // Clear all selections and recreate GUI
-        selectedSlots = [];
+        selectedChunks = [];
         
-        // Save cleared selection
+        // Save cleared selection to GLOBAL storage
         if(lastBlock){
             var W = lastBlock.getWorld();
-            var keyPrefix = "chunkmap_" + lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ() + "_";
-            W.getStoreddata().put(keyPrefix + "selected", JSON.stringify(selectedSlots));
+            W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
         }
         
         renderChunkMapGui(player, api);
+    }
+    
+    if(e.buttonId === ID_TIME_DAY_BUTTON){
+        // Execute time set day command
+        api.executeCommand(player.getWorld(), "time set day");
+        player.message("§aTime set to day");
     }
     
     if(e.buttonId === ID_SEARCH_BUTTON){
@@ -323,40 +394,54 @@ function customGuiButton(e){
         }
         
         // Convert block coordinates to chunk coordinates
-        var chunkCol = Math.floor(blockX / 16);
-        var chunkRow = Math.floor(blockZ / 16);
+        var chunkX = Math.floor(blockX / 16);
+        var chunkZ = Math.floor(blockZ / 16);
         
         // Check if chunk is within map bounds
-        if(chunkCol < 0 || chunkCol >= mapCols || chunkRow < 0 || chunkRow >= mapRows){
-            player.message("§cChunk [" + chunkCol + "," + chunkRow + "] is outside map bounds (0-" + (mapCols-1) + ", 0-" + (mapRows-1) + ")");
+        if(chunkX < minChunkX || chunkX > minChunkX + mapCols - 1 || 
+           chunkZ < minChunkZ || chunkZ > minChunkZ + mapRows - 1){
+            player.message("§cChunk [" + chunkX + "," + chunkZ + "] is outside map bounds ([" + 
+                         minChunkX + "," + minChunkZ + "] to [" + (minChunkX + mapCols - 1) + "," + 
+                         (minChunkZ + mapRows - 1) + "])");
             return;
         }
         
         // Calculate global position
-        var globalPos = chunkRow * mapCols + chunkCol;
+        var globalPos = chunkCoordsToGlobalPos(chunkX, chunkZ);
+        
+        // Calculate relative position for viewport
+        var relativeCol = chunkX - minChunkX;
+        var relativeRow = chunkZ - minChunkZ;
         
         // Center viewport on this chunk
-        viewportX = Math.max(0, Math.min(chunkCol - Math.floor(viewportCols / 2), mapCols - viewportCols));
-        viewportY = Math.max(0, Math.min(chunkRow - Math.floor(viewportRows / 2), mapRows - viewportRows));
+        viewportX = Math.max(0, Math.min(relativeCol - Math.floor(viewportCols / 2), mapCols - viewportCols));
+        viewportY = Math.max(0, Math.min(relativeRow - Math.floor(viewportRows / 2), mapRows - viewportRows));
         
-        // Add to selected slots if not already selected
-        if(selectedSlots.indexOf(globalPos) === -1){
-            selectedSlots.push(globalPos);
+        // Add to selected chunks if not already selected
+        var alreadySelected = false;
+        for(var i = 0; i < selectedChunks.length; i++){
+            if(selectedChunks[i].chunkX === chunkX && selectedChunks[i].chunkZ === chunkZ){
+                alreadySelected = true;
+                break;
+            }
+        }
+        
+        if(!alreadySelected){
+            selectedChunks.push({chunkX: chunkX, chunkZ: chunkZ});
             
-            // Save selection
+            // Save selection to GLOBAL storage
             if(lastBlock){
                 var W = lastBlock.getWorld();
-                var keyPrefix = "chunkmap_" + lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ() + "_";
-                W.getStoreddata().put(keyPrefix + "selected", JSON.stringify(selectedSlots));
+                W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
             }
         }
         
         // Update chunk info
-        var minX = chunkCol * 16;
-        var minZ = chunkRow * 16;
+        var minX = chunkX * 16;
+        var minZ = chunkZ * 16;
         var maxX = minX + 15;
         var maxZ = minZ + 15;
-        currentChunkInfo = "§6Chunk [" + chunkCol + "," + chunkRow + "] §7→ Blocks: §f" + minX + "," + minZ + " §7to §f" + maxX + "," + maxZ;
+        currentChunkInfo = "§6Chunk [" + chunkX + "," + chunkZ + "] §7→ Blocks: §f" + minX + "," + minZ + " §7to §f" + maxX + "," + maxZ;
         
         // Save viewport position
         saveViewportPosition();
@@ -364,7 +449,7 @@ function customGuiButton(e){
         // Recreate GUI to show new viewport and highlight
         renderChunkMapGui(player, api);
         
-        player.message("§aJumped to chunk [" + chunkCol + "," + chunkRow + "]");
+        player.message("§aJumped to chunk [" + chunkX + "," + chunkZ + "]");
     }
     
     if(e.buttonId === ID_UP_BUTTON){
@@ -420,6 +505,4 @@ function customGuiClosed(e){
             W.getStoreddata().put(keyPrefix + globalPos, st.getItemNbt().toJsonString());
         }
     }
-    
-    // Don't clear guiRef when just recreating
 }
