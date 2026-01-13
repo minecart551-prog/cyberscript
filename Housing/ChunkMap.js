@@ -6,9 +6,9 @@ var CURRENCY_PRIMARY_ITEM = "coins:emerald_coin";
 var CURRENCY_SECONDARY_ITEM = "coins:coal_coin";
 var CURRENCY_CONVERSION_RATE = 100;
 
-var PROTECTED_AREAS = [
-   {minX: 131, minZ: -175, maxX: 162, maxZ: -84, name: "Linefield City"}
-    //{minX: -500, minZ: -500, maxX: -300, maxZ: -300, name: "Spawn Area"}
+var PROTECTED_AREAS = [ 626 -8 2078
+   {minX: 626, minZ: 93, maxX: 3187, maxZ: -1294, name: "Linefield City"},
+   {minX: 1839, minZ: 93, maxX: 3187, maxZ: 2264, name: "Linefield City"}
 ];
 
 var guiRef;
@@ -18,10 +18,10 @@ var slotHighlights = {};
 var viewportRows = 8;
 var viewportCols = 18;
 
-var WORLD_MIN_X = -500;
-var WORLD_MIN_Z = -500;
-var WORLD_MAX_X = 1599;
-var WORLD_MAX_Z = 1599;
+var WORLD_MIN_X = 626;
+var WORLD_MIN_Z = 93;
+var WORLD_MAX_X = 1839;
+var WORLD_MAX_Z = 2264;
 
 var minChunkX = 0;
 var minChunkZ = 0;
