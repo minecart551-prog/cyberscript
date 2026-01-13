@@ -224,30 +224,23 @@ function renderChunkMapGui(player, api){
     guiRef.addButton(ID_LEFT_BUTTON, "←", navCenterX - btnGap, navY, btnSize, btnSize);
     guiRef.addButton(ID_RIGHT_BUTTON, "→", navCenterX + btnGap, navY, btnSize, btnSize);
     
-    guiRef.addButton(ID_CLEAR_BUTTON, "Clear", 200, -15, 40, 20);
+    guiRef.addButton(ID_UNCLAIM_BUTTON, "Unclaim", 153, -15, 45, 20);
     
-    // Add Claim button only if price has been calculated AND chunk count hasn't changed
-    if(showTotalPrice && priceCalculatedForChunkCount === selectedChunks.length) {
-        guiRef.addButton(ID_CLAIM_BUTTON, "Claim", 245, -15, 35, 20);
-    }
-    
-    // Add Unclaim button
-    guiRef.addButton(ID_UNCLAIM_BUTTON, "Unclaim", 283, -15, 45, 20);
+    guiRef.addButton(ID_CLEAR_BUTTON, "Clear", 203, -15, 40, 20);
     
     // Add Price button
-    guiRef.addButton(ID_PRICE_BUTTON, "Price", 333, -15, 35, 20);
+    guiRef.addButton(ID_PRICE_BUTTON, "Price", 248, -15, 35, 20);
     
-    // Display price slots - always show base price per chunk
-    var priceX = 335;
+    // Display price slots below Price button (vertically stacked)
+    // Position them to the right of the chunk grid
+    var priceX = 250;
     var priceY = 10;
-    
-    guiRef.addLabel(61, "§7Price:", priceX - 10, priceY - 12, 0.8, 0.8);
     
     // Coal coin slot
     coalPriceSlot = guiRef.addItemSlot(priceX, priceY);
     
-    // Stone coin slot
-    stonePriceSlot = guiRef.addItemSlot(priceX, priceY + 22);
+    // Stone coin slot (below coal slot)
+    stonePriceSlot = guiRef.addItemSlot(priceX, priceY + 20);
     
     // Only show calculated prices if Price button was pressed
     if(showTotalPrice) {
@@ -278,21 +271,21 @@ function renderChunkMapGui(player, api){
         // If no chunks selected, slots remain empty (air)
     }
     
-    // Show selected chunks count
+    // Add Claim button below price slots (only if price was calculated)
+    if(showTotalPrice && priceCalculatedForChunkCount === selectedChunks.length) {
+        guiRef.addButton(ID_CLAIM_BUTTON, "Claim", priceX - 2, priceY + 42, 40, 20);
+    }
+    
+    // Add search field and button - moved 10px to the left
+    guiRef.addLabel(2, "§7Jump to X,Z:", -80, -32, 1.0, 1.0);
+    guiRef.addTextField(ID_SEARCH_FIELD, -80, -20, 80, 18).setText("");
+    guiRef.addButton(ID_SEARCH_BUTTON, "Go", 3, -20, 30, 18);
+    
+    // Show selected chunks count - moved 20px more to the right (20 + 20 = 40) and 8px higher (168 - 8 = 160)
     var totalChunks = selectedChunks.length;
-    guiRef.addLabel(ID_TOTAL_LABEL, "§7Selected: §6" + totalChunks + " §7chunks", priceX - 10, priceY + 50, 0.8, 0.8);
+    guiRef.addLabel(ID_TOTAL_LABEL, "§7Selected: §6" + totalChunks + " §7chunks", 40, 160, 0.8, 0.8);
     
-    // Add search field and button
-    guiRef.addLabel(2, "§7Jump to X,Z:", -70, -32, 1.0, 1.0);
-    guiRef.addTextField(ID_SEARCH_FIELD, -70, -20, 80, 18).setText("");
-    guiRef.addButton(ID_SEARCH_BUTTON, "Go", 13, -20, 30, 18);
-    
-    // Display viewport info with absolute chunk coordinates
-    var startChunk = globalPosToChunkCoords(viewportY * mapCols + viewportX);
-    var endChunk = globalPosToChunkCoords((viewportY + viewportRows - 1) * mapCols + (viewportX + viewportCols - 1));
-    guiRef.addLabel(1, "§7Viewport: [" + startChunk.chunkX + "," + startChunk.chunkZ + "] to [" + endChunk.chunkX + "," + endChunk.chunkZ + "]", 60, -15, 1.0, 1.0);
-    
-    // Display chunk info
+    // Display chunk info at bottom
     if(currentChunkInfo){
         guiRef.addLabel(ID_CHUNK_INFO_LABEL, currentChunkInfo, 5, 195, 1.0, 1.0);
     } else {
