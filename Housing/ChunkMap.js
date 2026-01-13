@@ -7,8 +7,8 @@ var viewportRows = 8;
 var viewportCols = 18;
 
 // Define your world boundaries (block coordinates)
-var WORLD_MIN_X = 0;      // Minimum X block coordinate
-var WORLD_MIN_Z = 0;      // Minimum Z block coordinate
+var WORLD_MIN_X = -500;      // Minimum X block coordinate
+var WORLD_MIN_Z = -500;      // Minimum Z block coordinate
 var WORLD_MAX_X = 1599;   // Maximum X block coordinate
 var WORLD_MAX_Z = 1599;   // Maximum Z block coordinate
 
@@ -39,9 +39,26 @@ var ID_RIGHT_BUTTON = 54;
 var ID_CHUNK_INFO_LABEL = 55;
 var ID_SEARCH_FIELD = 56;
 var ID_SEARCH_BUTTON = 57;
-var ID_TIME_DAY_BUTTON = 58;
+var ID_CLAIM_BUTTON = 58;
+var ID_UNCLAIM_BUTTON = 59;
+var ID_PRICE_BUTTON = 60;
+var ID_COAL_PRICE_SLOT = 61;
+var ID_STONE_PRICE_SLOT = 62;
+var ID_TOTAL_LABEL = 63;
 
 var currentChunkInfo = "";
+
+// Default chunk prices (per chunk)
+var CHUNK_COAL_PRICE = 1;
+var CHUNK_STONE_PRICE = 50;
+
+// Store references to price slots
+var coalPriceSlot = null;
+var stonePriceSlot = null;
+
+// Track if price button was pressed
+var showTotalPrice = false;
+var priceCalculatedForChunkCount = 0; // Track how many chunks price was calculated for
 
 // Global key for shared selection data (stores absolute chunk coordinates)
 var GLOBAL_SELECTION_KEY = "chunkmap_selected";
@@ -209,8 +226,61 @@ function renderChunkMapGui(player, api){
     
     guiRef.addButton(ID_CLEAR_BUTTON, "Clear", 200, -15, 40, 20);
     
-    // Add time set day button
-    guiRef.addButton(ID_TIME_DAY_BUTTON, "Day", 245, -15, 30, 20);
+    // Add Claim button only if price has been calculated AND chunk count hasn't changed
+    if(showTotalPrice && priceCalculatedForChunkCount === selectedChunks.length) {
+        guiRef.addButton(ID_CLAIM_BUTTON, "Claim", 245, -15, 35, 20);
+    }
+    
+    // Add Unclaim button
+    guiRef.addButton(ID_UNCLAIM_BUTTON, "Unclaim", 283, -15, 45, 20);
+    
+    // Add Price button
+    guiRef.addButton(ID_PRICE_BUTTON, "Price", 333, -15, 35, 20);
+    
+    // Display price slots - always show base price per chunk
+    var priceX = 335;
+    var priceY = 10;
+    
+    guiRef.addLabel(61, "§7Price:", priceX - 10, priceY - 12, 0.8, 0.8);
+    
+    // Coal coin slot
+    coalPriceSlot = guiRef.addItemSlot(priceX, priceY);
+    
+    // Stone coin slot
+    stonePriceSlot = guiRef.addItemSlot(priceX, priceY + 22);
+    
+    // Only show calculated prices if Price button was pressed
+    if(showTotalPrice) {
+        var totalChunks = selectedChunks.length;
+        
+        if(totalChunks > 0) {
+            // Calculate raw totals
+            var totalCoal = CHUNK_COAL_PRICE * totalChunks;
+            var totalStone = CHUNK_STONE_PRICE * totalChunks;
+            
+            // Convert all to stone first (1 coal = 100 stone)
+            var totalInStone = (totalCoal * 100) + totalStone;
+            
+            // Now convert back to coal and stone
+            var finalCoal = Math.floor(totalInStone / 100);
+            var finalStone = totalInStone % 100;
+            
+            if(finalCoal > 0) {
+                var coalCoin = player.world.createItem("coins:coal_coin", Math.min(finalCoal, 64));
+                coalPriceSlot.setStack(coalCoin);
+            }
+            
+            if(finalStone > 0) {
+                var stoneCoin = player.world.createItem("coins:stone_coin", Math.min(finalStone, 64));
+                stonePriceSlot.setStack(stoneCoin);
+            }
+        }
+        // If no chunks selected, slots remain empty (air)
+    }
+    
+    // Show selected chunks count
+    var totalChunks = selectedChunks.length;
+    guiRef.addLabel(ID_TOTAL_LABEL, "§7Selected: §6" + totalChunks + " §7chunks", priceX - 10, priceY + 50, 0.8, 0.8);
     
     // Add search field and button
     guiRef.addLabel(2, "§7Jump to X,Z:", -70, -32, 1.0, 1.0);
@@ -241,9 +311,13 @@ function drawHighlight(index) {
     var y = offsetY + row * (slotSize + slotPadding) - 1;
     var w = slotSize, h = slotSize;
     
-    // Draw one thick horizontal line to fill the entire slot
+    // Draw 4 lines to outline the slot (2 pixels thick, 2 pixels closer to center)
+    var inset = 2;
     slotHighlights[index] = [
-        guiRef.addColoredLine(nextLineId++, x, y + h/2, x + w, y + h/2, 0xADD8E6, h)
+        guiRef.addColoredLine(nextLineId++, x + inset, y + inset, x + w - inset, y + inset, 0xADD8E6, 2),           // Top
+        guiRef.addColoredLine(nextLineId++, x + inset, y + h - inset, x + w - inset, y + h - inset, 0xADD8E6, 2),   // Bottom
+        guiRef.addColoredLine(nextLineId++, x + inset, y + inset, x + inset, y + h - inset, 0xADD8E6, 2),           // Left
+        guiRef.addColoredLine(nextLineId++, x + w - inset, y + inset, x + w - inset, y + h - inset, 0xADD8E6, 2)    // Right
     ];
 }
 
@@ -297,12 +371,15 @@ function toggleHighlight(index, player, api) {
             W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
         }
         
+        // Reset price display flag when deselecting (chunk count changed)
+        showTotalPrice = false;
+        priceCalculatedForChunkCount = 0;
+        
         // Recreate GUI to properly remove highlight and rebuild others
         renderChunkMapGui(player, api);
     } else {
         // Add to selectedChunks and draw highlight
         selectedChunks.push({chunkX: chunkX, chunkZ: chunkZ});
-        drawHighlight(index);
         
         // Save selected chunks to GLOBAL storage
         if(lastBlock){
@@ -310,13 +387,31 @@ function toggleHighlight(index, player, api) {
             W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
         }
         
-        // Update the chunk info label without recreating GUI
-        try {
-            var label = guiRef.getComponent(ID_CHUNK_INFO_LABEL);
-            if(label) label.setText(currentChunkInfo);
-        } catch(e) {}
+        // Check if we need to recreate GUI (if price was calculated, we need to hide Claim button)
+        var needsRecreate = showTotalPrice;
         
-        if (guiRef) guiRef.update();
+        // Reset price display flag when selecting (chunk count changed)
+        showTotalPrice = false;
+        priceCalculatedForChunkCount = 0;
+        
+        if(needsRecreate) {
+            // Recreate GUI to hide Claim button and clear price slots
+            renderChunkMapGui(player, api);
+        } else {
+            // Just draw highlight and update labels
+            drawHighlight(index);
+            
+            // Update the chunk info label and selected count without recreating GUI
+            try {
+                var label = guiRef.getComponent(ID_CHUNK_INFO_LABEL);
+                if(label) label.setText(currentChunkInfo);
+                
+                var totalLabel = guiRef.getComponent(ID_TOTAL_LABEL);
+                if(totalLabel) totalLabel.setText("§7Selected: §6" + selectedChunks.length + " §7chunks");
+            } catch(e) {}
+            
+            if (guiRef) guiRef.update();
+        }
     }
 }
 
@@ -326,6 +421,104 @@ function saveViewportPosition(){
     var keyPrefix = "chunkmap_" + lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ() + "_";
     W.getStoreddata().put(keyPrefix + "viewportX", viewportX.toString());
     W.getStoreddata().put(keyPrefix + "viewportY", viewportY.toString());
+}
+
+// ===== Check if any selected chunks are already claimed =====
+function hasClaimedChunksInSelection() {
+    if(!lastBlock) return false;
+    var W = lastBlock.getWorld();
+    var keyPrefix = "chunkmap_" + lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ() + "_";
+    
+    for(var i = 0; i < selectedChunks.length; i++){
+        var chunk = selectedChunks[i];
+        var globalPos = chunkCoordsToGlobalPos(chunk.chunkX, chunk.chunkZ);
+        
+        if(globalPos !== -1){
+            // Check if this chunk has an item (is claimed)
+            if(W.getStoreddata().has(keyPrefix + globalPos)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// ===== Claim selected chunks =====
+function claimSelectedChunks(player, api) {
+    if(selectedChunks.length === 0) {
+        player.message("§cNo chunks selected to claim!");
+        return;
+    }
+    
+    if(!lastBlock) return;
+    var W = lastBlock.getWorld();
+    var keyPrefix = "chunkmap_" + lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ() + "_";
+    
+    // Create dirt item NBT with player's name
+    var dirtItem = W.createItem("minecraft:dirt", 1);
+    dirtItem.setCustomName("§6" + player.getName());
+    var dirtNbt = dirtItem.getItemNbt().toJsonString();
+    
+    var claimedCount = 0;
+    
+    // Fill all selected chunks with dirt
+    for(var i = 0; i < selectedChunks.length; i++){
+        var chunk = selectedChunks[i];
+        var globalPos = chunkCoordsToGlobalPos(chunk.chunkX, chunk.chunkZ);
+        
+        if(globalPos !== -1){
+            // Store dirt in this chunk's slot
+            W.getStoreddata().put(keyPrefix + globalPos, dirtNbt);
+            storedSlotItems[globalPos] = dirtNbt;
+            claimedCount++;
+        }
+    }
+    
+    player.message("§aClaimed " + claimedCount + " chunk(s)!");
+    
+    // Clear all selections after claiming
+    selectedChunks = [];
+    W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
+    
+    // Recreate GUI to show the dirt blocks without highlights
+    renderChunkMapGui(player, api);
+}
+
+
+// ===== Unclaim selected chunks =====
+function unclaimSelectedChunks(player, api) {
+    if(selectedChunks.length === 0) {
+        player.message("§cNo chunks selected to unclaim!");
+        return;
+    }
+    
+    if(!lastBlock) return;
+    var W = lastBlock.getWorld();
+    var keyPrefix = "chunkmap_" + lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ() + "_";
+    
+    var unclaimedCount = 0;
+    
+    // Remove items from all selected chunks
+    for(var i = 0; i < selectedChunks.length; i++){
+        var chunk = selectedChunks[i];
+        var globalPos = chunkCoordsToGlobalPos(chunk.chunkX, chunk.chunkZ);
+        
+        if(globalPos !== -1){
+            // Remove item from storage
+            W.getStoreddata().remove(keyPrefix + globalPos);
+            storedSlotItems[globalPos] = null;
+            unclaimedCount++;
+        }
+    }
+    
+    player.message("§aUnclaimed " + unclaimedCount + " chunk(s)!");
+    
+    // Clear all selections after unclaiming
+    selectedChunks = [];
+    W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
+    
+    // Recreate GUI to remove the items without highlights
+    renderChunkMapGui(player, api);
 }
 
 // ===== Handle slot clicks =====
@@ -358,13 +551,38 @@ function customGuiButton(e){
             W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
         }
         
+        // Reset price display flag
+        showTotalPrice = false;
+        priceCalculatedForChunkCount = 0;
+        
         renderChunkMapGui(player, api);
     }
     
-    if(e.buttonId === ID_TIME_DAY_BUTTON){
-        // Execute time set day command
-        api.executeCommand(player.getWorld(), "time set day");
-        player.message("§aTime set to day");
+    if(e.buttonId === ID_CLAIM_BUTTON){
+        // Check if any selected chunks are already claimed
+        if(hasClaimedChunksInSelection()) {
+            player.message("§cChunk already claimed!");
+            return;
+        }
+        
+        claimSelectedChunks(player, api);
+        // Reset price display flag after claiming
+        showTotalPrice = false;
+        priceCalculatedForChunkCount = 0;
+    }
+    
+    if(e.buttonId === ID_UNCLAIM_BUTTON){
+        unclaimSelectedChunks(player, api);
+        // Reset price display flag after unclaiming
+        showTotalPrice = false;
+        priceCalculatedForChunkCount = 0;
+    }
+    
+    if(e.buttonId === ID_PRICE_BUTTON){
+        // Calculate and show total price based on current selections
+        showTotalPrice = true;
+        priceCalculatedForChunkCount = selectedChunks.length;
+        renderChunkMapGui(player, api);
     }
     
     if(e.buttonId === ID_SEARCH_BUTTON){
