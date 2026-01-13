@@ -556,6 +556,10 @@ function claimSelectedChunks(player, api) {
     var playerName = player.getName();
     
     api.executeCommand(W, "protect add " + playerName);
+    api.executeCommand(W, "protect set rule " + playerName + " break allow");
+    api.executeCommand(W, "protect set rule " + playerName + " place allow");
+    api.executeCommand(W, "protect set rule " + playerName + " pvp allow");
+    api.executeCommand(W, "protect set rule " + playerName + " interact allow");
     api.executeCommand(W, "protect inclusion add " + playerName + " player " + playerName);
     
     for(var i = 0; i < selectedChunks.length; i++){
