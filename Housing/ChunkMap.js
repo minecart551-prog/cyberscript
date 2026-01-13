@@ -6,7 +6,7 @@ var CURRENCY_PRIMARY_ITEM = "coins:emerald_coin";
 var CURRENCY_SECONDARY_ITEM = "coins:coal_coin";
 var CURRENCY_CONVERSION_RATE = 100;
 
-var PROTECTED_AREAS = [ 626 -8 2078
+var PROTECTED_AREAS = [
    {minX: 626, minZ: 93, maxX: 3187, maxZ: -1294, name: "Linefield City"},
    {minX: 1839, minZ: 93, maxX: 3187, maxZ: 2264, name: "Linefield City"}
 ];
