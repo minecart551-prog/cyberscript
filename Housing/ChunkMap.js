@@ -1,5 +1,5 @@
 var CHUNK_BUY_PRIM_PRICE = 1;
-var CHUNK_BUY_SEC_PRICE = 50;
+var CHUNK_BUY_SEC_PRICE = 0;
 var CHUNK_SELL_PERCENTAGE = 1;
 
 var CURRENCY_PRIMARY_ITEM = "coins:emerald_coin";
@@ -7,7 +7,7 @@ var CURRENCY_SECONDARY_ITEM = "coins:coal_coin";
 var CURRENCY_CONVERSION_RATE = 100;
 
 var PROTECTED_AREAS = [
-   {minX: 626, minZ: 93, maxX: 3187, maxZ: -1294, name: "Linefield City"},
+   {minX: 626, minZ: -1294, maxX: 3187, maxZ: 92, name: "Linefield City"},
    {minX: 1839, minZ: 93, maxX: 3187, maxZ: 2264, name: "Linefield City"}
 ];
 
@@ -19,8 +19,8 @@ var viewportRows = 8;
 var viewportCols = 18;
 
 var WORLD_MIN_X = 626;
-var WORLD_MIN_Z = 93;
-var WORLD_MAX_X = 1839;
+var WORLD_MIN_Z = 70;
+var WORLD_MAX_X = 1850;
 var WORLD_MAX_Z = 2264;
 
 var minChunkX = 0;
