@@ -1,3 +1,21 @@
+// ===== CONFIGURABLE PRICES =====
+var CHUNK_BUY_PRIM_PRICE = 1;    // Primary currency per chunk
+var CHUNK_BUY_SEC_PRICE = 50;    // Secondary currency per chunk
+var CHUNK_SELL_PERCENTAGE = 0.5; // Sell refund percentage (0.5 = 50%)
+
+// ===== CONFIGURABLE CURRENCY =====
+var CURRENCY_PRIMARY_ITEM = "coins:coal_coin";   // Primary currency item (e.g., "coins:coal_coin", "minecraft:diamond")
+var CURRENCY_SECONDARY_ITEM = "coins:stone_coin"; // Secondary currency item (e.g., "coins:stone_coin", "minecraft:emerald")
+var CURRENCY_CONVERSION_RATE = 100; // How many secondary = 1 primary (e.g., 100 stone = 1 coal)
+
+// ===== PROTECTED AREAS (City zones that cannot be claimed) =====
+// Define protected areas as rectangular boxes using chunk coordinates
+// Format: [{minChunkX: x1, minChunkZ: z1, maxChunkX: x2, maxChunkZ: z2, name: "Area Name"}, ...]
+var PROTECTED_AREAS = [
+    // Example: {minChunkX: 0, minChunkZ: 0, maxChunkX: 10, maxChunkZ: 10, name: "Linefield City"}
+    // Add your protected areas here:
+];
+
 // Chunk map variables
 var guiRef;                 
 var mySlots = [];           
@@ -50,9 +68,9 @@ var ID_APPEARANCE_BUTTON = 65;
 
 var currentChunkInfo = "";
 
-// Default chunk prices (per chunk)
-var CHUNK_COAL_PRICE = 1;
-var CHUNK_STONE_PRICE = 50;
+// Reference configurable prices
+var CHUNK_PRIM_PRICE = CHUNK_BUY_PRIM_PRICE;
+var CHUNK_SEC_PRICE = CHUNK_BUY_SEC_PRICE;
 
 // Store references to price slots
 var coalPriceSlot = null;
@@ -76,7 +94,8 @@ var ALLOWED_ITEMS = [
     "crimson_stem", "crimson_hyphae", "stripped_crimson_stem", "stripped_crimson_hyphae", "crimson_planks", "crimson_stairs", "crimson_slab", "crimson_fence", "crimson_fence_gate", "crimson_door", "crimson_trapdoor", "crimson_pressure_plate", "crimson_button",
     "warped_stem", "warped_hyphae", "stripped_warped_stem", "stripped_warped_hyphae", "warped_planks", "warped_stairs", "warped_slab", "warped_fence", "warped_fence_gate", "warped_door", "warped_trapdoor", "warped_pressure_plate", "warped_button",
     "stone", "stone_stairs", "stone_slab", "stone_pressure_plate", "stone_button", "cobblestone", "cobblestone_stairs", "cobblestone_slab", "cobblestone_wall", "mossy_cobblestone", "mossy_cobblestone_stairs", "mossy_cobblestone_slab", "mossy_cobblestone_wall",
-    "smooth_stone", "smooth_stone_slab", "stone_bricks", "cracked_stone_bricks", "stone_brick_stairs", "stone_brick_slab", "stone_brick_wall", "chiseled_stone_bricks", "mossy_stone_bricks", "mossy_stone_brick_stairs", "mossy_stone_brick_wall"
+    "smooth_stone", "smooth_stone_slab", "stone_bricks", "cracked_stone_bricks", "stone_brick_stairs", "stone_brick_slab", "stone_brick_wall", "chiseled_stone_bricks", "mossy_stone_bricks", "mossy_stone_brick_stairs", "mossy_stone_brick_wall",
+    "white_wool", "orange_wool", "magenta_wool", "light_blue_wool", "yellow_wool", "lime_wool", "pink_wool", "gray_wool", "light_gray_wool", "cyan_wool", "purple_wool", "blue_wool", "brown_wool", "green_wool", "red_wool", "black_wool"
 ];
 
 // Global key for shared selection data (stores absolute chunk coordinates)
@@ -183,7 +202,20 @@ function openChunkMapGui(player, api){
     storedSlotItems = [];
     for (var i = 0; i < mapRows * mapCols; i++){
         var key = "chunk_" + i;
-        storedSlotItems.push(claimedChunks[key] || null);
+        
+        // Check if this chunk is in a protected area
+        var chunkCoords = globalPosToChunkCoords(i);
+        var protectedArea = isChunkProtected(chunkCoords.chunkX, chunkCoords.chunkZ);
+        
+        if(protectedArea){
+            // Create barrier item with protected area name
+            var barrierItem = W.createItem("minecraft:barrier", 1);
+            barrierItem.setCustomName("§c" + protectedArea.name);
+            storedSlotItems.push(barrierItem.getItemNbt().toJsonString());
+        } else {
+            // Use claimed chunk data or null
+            storedSlotItems.push(claimedChunks[key] || null);
+        }
     }
 
     // Load selected chunks from GLOBAL storage (stores absolute chunk coordinates)
@@ -286,32 +318,31 @@ function renderChunkMapGui(player, api){
     stonePriceSlot = guiRef.addItemSlot(priceX, priceY + 20);
     
     // Only show calculated prices if Price button was pressed
-    if(showTotalPrice) {
+    if(showTotalPrice && selectedChunks.length > 0) {
         var totalChunks = selectedChunks.length;
         
-        if(totalChunks > 0) {
-            // Calculate raw totals
-            var totalCoal = CHUNK_COAL_PRICE * totalChunks;
-            var totalStone = CHUNK_STONE_PRICE * totalChunks;
-            
-            // Convert all to stone first (1 coal = 100 stone)
-            var totalInStone = (totalCoal * 100) + totalStone;
-            
-            // Now convert back to coal and stone
-            var finalCoal = Math.floor(totalInStone / 100);
-            var finalStone = totalInStone % 100;
-            
-            if(finalCoal > 0) {
-                var coalCoin = player.world.createItem("coins:coal_coin", Math.min(finalCoal, 64));
-                coalPriceSlot.setStack(coalCoin);
-            }
-            
-            if(finalStone > 0) {
-                var stoneCoin = player.world.createItem("coins:stone_coin", Math.min(finalStone, 64));
-                stonePriceSlot.setStack(stoneCoin);
-            }
+        // Calculate raw totals
+        var totalPrim = CHUNK_PRIM_PRICE * totalChunks;
+        var totalSec = CHUNK_SEC_PRICE * totalChunks;
+        
+        // Convert all to secondary first (using configurable conversion rate)
+        var totalInSec = (totalPrim * CURRENCY_CONVERSION_RATE) + totalSec;
+        
+        // Now convert back to primary and secondary
+        var finalPrim = Math.floor(totalInSec / CURRENCY_CONVERSION_RATE);
+        var finalSec = totalInSec % CURRENCY_CONVERSION_RATE;
+        
+        // Set primary currency slot
+        if(finalPrim > 0) {
+            var primCoin = player.world.createItem(CURRENCY_PRIMARY_ITEM, Math.min(finalPrim, 64));
+            coalPriceSlot.setStack(primCoin);
         }
-        // If no chunks selected, slots remain empty (air)
+        
+        // Set secondary currency slot
+        if(finalSec > 0) {
+            var secCoin = player.world.createItem(CURRENCY_SECONDARY_ITEM, Math.min(finalSec, 64));
+            stonePriceSlot.setStack(secCoin);
+        }
     }
     
     // Add Claim button below price slots (only if price was calculated)
@@ -336,9 +367,9 @@ function renderChunkMapGui(player, api){
     }
     
     // Add appearance customization field and button at bottom left
-    guiRef.addLabel(3, "§7eg:melon", -80, 178, 0.8, 0.8);
-    guiRef.addTextField(ID_APPEARANCE_FIELD, -80, 188, 80, 18).setText("");
-    guiRef.addButton(ID_APPEARANCE_BUTTON, "→", 3, 188, 30, 18);
+    guiRef.addLabel(3, "§7eg:melon", -150, 178, 0.8, 0.8);
+    guiRef.addTextField(ID_APPEARANCE_FIELD, -150, 188, 80, 18).setText("");
+    guiRef.addButton(ID_APPEARANCE_BUTTON, "→", -67, 188, 20, 18);
 
     player.showCustomGui(guiRef);
 }
@@ -383,6 +414,13 @@ function toggleHighlight(index, player, api) {
     var chunk = globalPosToChunkCoords(globalPos);
     var chunkX = chunk.chunkX;
     var chunkZ = chunk.chunkZ;
+    
+    // Check if chunk is in a protected area
+    var protectedArea = isChunkProtected(chunkX, chunkZ);
+    if(protectedArea){
+        player.message("§cCannot select chunks in " + protectedArea.name + "!");
+        return;
+    }
     
     // Calculate block coordinates (each chunk is 16x16 blocks)
     var minX = chunkX * 16;
@@ -464,6 +502,18 @@ function saveViewportPosition(){
     W.getStoreddata().put(viewportKey, JSON.stringify({x: viewportX, y: viewportY}));
 }
 
+// ===== Check if chunk is in a protected area =====
+function isChunkProtected(chunkX, chunkZ) {
+    for(var i = 0; i < PROTECTED_AREAS.length; i++){
+        var area = PROTECTED_AREAS[i];
+        if(chunkX >= area.minChunkX && chunkX <= area.maxChunkX &&
+           chunkZ >= area.minChunkZ && chunkZ <= area.maxChunkZ){
+            return area;
+        }
+    }
+    return null;
+}
+
 // ===== Check if any selected chunks are already claimed =====
 function hasClaimedChunksInSelection() {
     if(!lastBlock) return false;
@@ -505,31 +555,31 @@ function hasEnoughCurrency(player, coalNeeded, stoneNeeded) {
         if(stack){
             var itemName = stack.getName();
             
-            if(itemName === "coins:coal_coin"){
+            if(itemName === CURRENCY_PRIMARY_ITEM){
                 coalCount += stack.getStackSize();
             }
-            if(itemName === "coins:stone_coin"){
+            if(itemName === CURRENCY_SECONDARY_ITEM){
                 stoneCount += stack.getStackSize();
             }
         }
     }
     
-    // Convert to total stone for comparison (1 coal = 100 stone)
-    var totalStonePlayer = (coalCount * 100) + stoneCount;
-    var totalStoneNeeded = (coalNeeded * 100) + stoneNeeded;
+    // Convert to total stone for comparison (using configurable conversion rate)
+    var totalStonePlayer = (coalCount * CURRENCY_CONVERSION_RATE) + stoneCount;
+    var totalStoneNeeded = (coalNeeded * CURRENCY_CONVERSION_RATE) + stoneNeeded;
     
     return totalStonePlayer >= totalStoneNeeded;
 }
 
 // ===== Remove currency from player's inventory =====
 function removeCurrency(player, coalNeeded, stoneNeeded) {
-    var totalStoneNeeded = (coalNeeded * 100) + stoneNeeded;
+    var totalStoneNeeded = (coalNeeded * CURRENCY_CONVERSION_RATE) + stoneNeeded;
     var inv = player.getInventory();
     
     // First remove stone coins
     for(var i = 0; i < inv.getSize() && totalStoneNeeded > 0; i++){
         var stack = inv.getSlot(i);
-        if(stack && stack.getName() === "coins:stone_coin"){
+        if(stack && stack.getName() === CURRENCY_SECONDARY_ITEM){
             var amount = stack.getStackSize();
             if(amount <= totalStoneNeeded){
                 inv.setSlot(i, null);
@@ -544,22 +594,22 @@ function removeCurrency(player, coalNeeded, stoneNeeded) {
     // Then remove coal coins (convert to stone)
     for(var i = 0; i < inv.getSize() && totalStoneNeeded > 0; i++){
         var stack = inv.getSlot(i);
-        if(stack && stack.getName() === "coins:coal_coin"){
+        if(stack && stack.getName() === CURRENCY_PRIMARY_ITEM){
             var amount = stack.getStackSize();
-            var stoneValue = amount * 100;
+            var stoneValue = amount * CURRENCY_CONVERSION_RATE;
             
             if(stoneValue <= totalStoneNeeded){
                 inv.setSlot(i, null);
                 totalStoneNeeded -= stoneValue;
             } else {
-                var coalsToRemove = Math.ceil(totalStoneNeeded / 100);
+                var coalsToRemove = Math.ceil(totalStoneNeeded / CURRENCY_CONVERSION_RATE);
                 stack.setStackSize(amount - coalsToRemove);
-                var overpaid = (coalsToRemove * 100) - totalStoneNeeded;
+                var overpaid = (coalsToRemove * CURRENCY_CONVERSION_RATE) - totalStoneNeeded;
                 totalStoneNeeded = 0;
                 
                 // Give change back if overpaid
                 if(overpaid > 0){
-                    var changeItem = player.world.createItem("coins:stone_coin", overpaid);
+                    var changeItem = player.world.createItem(CURRENCY_SECONDARY_ITEM, overpaid);
                     player.giveItem(changeItem);
                 }
             }
@@ -587,10 +637,10 @@ function claimSelectedChunks(player, api) {
         }
     }
     
-    // Create dirt item NBT with player's name
-    var dirtItem = W.createItem("minecraft:dirt", 1);
-    dirtItem.setCustomName("§6" + player.getName());
-    var dirtNbt = dirtItem.getItemNbt().toJsonString();
+    // Create lime_wool item NBT with player's name
+    var defaultItem = W.createItem("minecraft:lime_wool", 1);
+    defaultItem.setCustomName("§6" + player.getName());
+    var defaultNbt = defaultItem.getItemNbt().toJsonString();
     
     var claimedCount = 0;
     var playerName = player.getName();
@@ -599,15 +649,15 @@ function claimSelectedChunks(player, api) {
     api.executeCommand(W, "protect add " + playerName);
     api.executeCommand(W, "protect inclusion add " + playerName + " player " + playerName);
     
-    // Fill all selected chunks with dirt and create individual protection shapes
+    // Fill all selected chunks with lime_wool and create individual protection shapes
     for(var i = 0; i < selectedChunks.length; i++){
         var chunk = selectedChunks[i];
         var globalPos = chunkCoordsToGlobalPos(chunk.chunkX, chunk.chunkZ);
         
         if(globalPos !== -1){
             var key = "chunk_" + globalPos;
-            claimedChunks[key] = dirtNbt;
-            storedSlotItems[globalPos] = dirtNbt;
+            claimedChunks[key] = defaultNbt;
+            storedSlotItems[globalPos] = defaultNbt;
             claimedCount++;
             
             // Calculate chunk boundaries (16x16 blocks, full build height -63 to 139)
@@ -683,15 +733,25 @@ function customGuiButton(e){
             return;
         }
         
+        // Check if any selected chunks are in protected areas
+        for(var i = 0; i < selectedChunks.length; i++){
+            var chunk = selectedChunks[i];
+            var protectedArea = isChunkProtected(chunk.chunkX, chunk.chunkZ);
+            if(protectedArea){
+                player.message("§cCannot claim chunks in " + protectedArea.name + "!");
+                return;
+            }
+        }
+        
         // Calculate total cost
         var totalChunks = selectedChunks.length;
-        var totalCoal = CHUNK_COAL_PRICE * totalChunks;
-        var totalStone = CHUNK_STONE_PRICE * totalChunks;
+        var totalCoal = CHUNK_PRIM_PRICE * totalChunks;
+        var totalStone = CHUNK_SEC_PRICE * totalChunks;
         
         // Convert to final amounts
-        var totalInStone = (totalCoal * 100) + totalStone;
-        var finalCoal = Math.floor(totalInStone / 100);
-        var finalStone = totalInStone % 100;
+        var totalInStone = (totalCoal * CURRENCY_CONVERSION_RATE) + totalStone;
+        var finalCoal = Math.floor(totalInStone / CURRENCY_CONVERSION_RATE);
+        var finalStone = totalInStone % CURRENCY_CONVERSION_RATE;
         
         // Check if player has enough currency
         if(!hasEnoughCurrency(player, finalCoal, finalStone)){
@@ -756,9 +816,9 @@ function customGuiButton(e){
                             var regionName = "chunk_" + chunk.chunkX + "_" + chunk.chunkZ;
                             api.executeCommand(W, "protect shape remove " + regionName + " from " + player.getName());
                             
-                            // Calculate refund (50% of original price)
-                            totalCoalReturn += CHUNK_COAL_PRICE * 0.5;
-                            totalStoneReturn += CHUNK_STONE_PRICE * 0.5;
+                            // Calculate refund (configurable percentage of original price)
+                            totalCoalReturn += CHUNK_PRIM_PRICE * CHUNK_SELL_PERCENTAGE;
+                            totalStoneReturn += CHUNK_SEC_PRICE * CHUNK_SELL_PERCENTAGE;
                             soldCount++;
                         }
                     } catch(e){}
@@ -775,17 +835,17 @@ function customGuiButton(e){
         W.getStoreddata().put(GLOBAL_CLAIMS_KEY, JSON.stringify(claimedChunks));
         
         // Convert and give currency back to player
-        var totalInStone = (totalCoalReturn * 100) + totalStoneReturn;
-        var finalCoal = Math.floor(totalInStone / 100);
-        var finalStone = Math.floor(totalInStone % 100);
+        var totalInStone = (totalCoalReturn * CURRENCY_CONVERSION_RATE) + totalStoneReturn;
+        var finalCoal = Math.floor(totalInStone / CURRENCY_CONVERSION_RATE);
+        var finalStone = Math.floor(totalInStone % CURRENCY_CONVERSION_RATE);
         
         if(finalCoal > 0){
-            var coalItem = player.world.createItem("coins:coal_coin", finalCoal);
+            var coalItem = player.world.createItem(CURRENCY_PRIMARY_ITEM, finalCoal);
             player.giveItem(coalItem);
         }
         
         if(finalStone > 0){
-            var stoneItem = player.world.createItem("coins:stone_coin", finalStone);
+            var stoneItem = player.world.createItem(CURRENCY_SECONDARY_ITEM, finalStone);
             player.giveItem(stoneItem);
         }
         
@@ -814,6 +874,12 @@ function customGuiButton(e){
         var itemInput = appearanceField.getText().trim().toLowerCase();
         if(!itemInput) {
             player.message("§cPlease enter an item name (e.g., oak_log)");
+            return;
+        }
+        
+        // Check if any chunks are selected
+        if(selectedChunks.length === 0){
+            player.message("§cNo chunks selected! Select chunks first.");
             return;
         }
         
@@ -847,42 +913,46 @@ function customGuiButton(e){
             }
         }
         
-        // Update all chunks owned by this player
+        // Update only the selected chunks that are owned by this player
         var updatedCount = 0;
-        for(var key in claimedChunks) {
-            if(claimedChunks.hasOwnProperty(key)) {
-                try {
-                    var item = player.world.createItemFromNbt(api.stringToNbt(claimedChunks[key]));
-                    var ownerName = item.getDisplayName();
-                    
-                    // Check if this chunk belongs to the player
-                    if(ownerName === "§6" + player.getName()) {
-                        // Create new item with player's name
-                        var newItem = W.createItem(itemName, 1);
-                        newItem.setCustomName("§6" + player.getName());
-                        claimedChunks[key] = newItem.getItemNbt().toJsonString();
+        for(var i = 0; i < selectedChunks.length; i++){
+            var chunk = selectedChunks[i];
+            var globalPos = chunkCoordsToGlobalPos(chunk.chunkX, chunk.chunkZ);
+            
+            if(globalPos !== -1){
+                var key = "chunk_" + globalPos;
+                if(claimedChunks[key]){
+                    try {
+                        var item = player.world.createItemFromNbt(api.stringToNbt(claimedChunks[key]));
+                        var ownerName = item.getDisplayName();
                         
-                        // Update storedSlotItems if this chunk is in the array
-                        var globalPos = parseInt(key.replace("chunk_", ""));
-                        if(globalPos >= 0 && globalPos < storedSlotItems.length) {
+                        // Check if this chunk belongs to the player
+                        if(ownerName === "§6" + player.getName()) {
+                            // Create new item with player's name
+                            var newItem = W.createItem(itemName, 1);
+                            newItem.setCustomName("§6" + player.getName());
+                            claimedChunks[key] = newItem.getItemNbt().toJsonString();
                             storedSlotItems[globalPos] = claimedChunks[key];
+                            updatedCount++;
                         }
-                        
-                        updatedCount++;
-                    }
-                } catch(e) {}
+                    } catch(e) {}
+                }
             }
         }
         
         if(updatedCount === 0) {
-            player.message("§cYou don't own any chunks!");
+            player.message("§cYou don't own any of the selected chunks!");
             return;
         }
         
         // Save updated chunks
         W.getStoreddata().put(GLOBAL_CLAIMS_KEY, JSON.stringify(claimedChunks));
         
-        player.message("§aUpdated appearance for " + updatedCount + " chunk(s) to " + itemInput + "!");
+        player.message("§aUpdated appearance for " + updatedCount + " selected chunk(s) to " + itemInput + "!");
+        
+        // Clear selections after updating
+        selectedChunks = [];
+        W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
         
         // Recreate GUI to show new appearance
         renderChunkMapGui(player, api);
