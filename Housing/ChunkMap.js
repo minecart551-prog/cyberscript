@@ -1,50 +1,40 @@
-// ===== CONFIGURABLE PRICES =====
-var CHUNK_BUY_PRIM_PRICE = 1;    // Primary currency per chunk
-var CHUNK_BUY_SEC_PRICE = 50;    // Secondary currency per chunk
-var CHUNK_SELL_PERCENTAGE = 0.5; // Sell refund percentage (0.5 = 50%)
+var CHUNK_BUY_PRIM_PRICE = 1;
+var CHUNK_BUY_SEC_PRICE = 50;
+var CHUNK_SELL_PERCENTAGE = 1;
 
-// ===== CONFIGURABLE CURRENCY =====
-var CURRENCY_PRIMARY_ITEM = "coins:coal_coin";   // Primary currency item (e.g., "coins:coal_coin", "minecraft:diamond")
-var CURRENCY_SECONDARY_ITEM = "coins:stone_coin"; // Secondary currency item (e.g., "coins:stone_coin", "minecraft:emerald")
-var CURRENCY_CONVERSION_RATE = 100; // How many secondary = 1 primary (e.g., 100 stone = 1 coal)
+var CURRENCY_PRIMARY_ITEM = "coins:emerald_coin";
+var CURRENCY_SECONDARY_ITEM = "coins:coal_coin";
+var CURRENCY_CONVERSION_RATE = 100;
 
-// ===== PROTECTED AREAS (City zones that cannot be claimed) =====
-// Define protected areas as rectangular boxes using chunk coordinates
-// Format: [{minChunkX: x1, minChunkZ: z1, maxChunkX: x2, maxChunkZ: z2, name: "Area Name"}, ...]
 var PROTECTED_AREAS = [
-    // Example: {minChunkX: 0, minChunkZ: 0, maxChunkX: 10, maxChunkZ: 10, name: "Linefield City"}
-    // Add your protected areas here:
+   {minX: 131, minZ: -175, maxX: 162, maxZ: -84, name: "Linefield City"}
+    //{minX: -500, minZ: -500, maxX: -300, maxZ: -300, name: "Spawn Area"}
 ];
 
-// Chunk map variables
-var guiRef;                 
-var mySlots = [];           
-var selectedChunks = [];     // Stores absolute chunk coordinates {chunkX, chunkZ}
+var guiRef;
+var mySlots = [];
+var selectedChunks = [];
 var slotHighlights = {};
 var viewportRows = 8;
 var viewportCols = 18;
 
-// Define your world boundaries (block coordinates)
-var WORLD_MIN_X = -500;      // Minimum X block coordinate
-var WORLD_MIN_Z = -500;      // Minimum Z block coordinate
-var WORLD_MAX_X = 1599;   // Maximum X block coordinate
-var WORLD_MAX_Z = 1599;   // Maximum Z block coordinate
+var WORLD_MIN_X = -500;
+var WORLD_MIN_Z = -500;
+var WORLD_MAX_X = 1599;
+var WORLD_MAX_Z = 1599;
 
-// Calculated chunk boundaries (do not modify these directly)
 var minChunkX = 0;
 var minChunkZ = 0;
-var mapCols = 0;  // Total columns (X direction)
-var mapRows = 0;  // Total rows (Z direction)
+var mapCols = 0;
+var mapRows = 0;
 
 var slotSize = 18;
 var slotPadding = 0;
 var offsetX = -80;
 var offsetY = 10;
-var storedSlotItems = [];
 var lastBlock = null;
 var nextLineId = 1000;
 
-// Viewport position on the map (in chunk coordinates relative to minChunk)
 var viewportX = 0;
 var viewportY = 0;
 
@@ -68,19 +58,15 @@ var ID_APPEARANCE_BUTTON = 65;
 
 var currentChunkInfo = "";
 
-// Reference configurable prices
 var CHUNK_PRIM_PRICE = CHUNK_BUY_PRIM_PRICE;
 var CHUNK_SEC_PRICE = CHUNK_BUY_SEC_PRICE;
 
-// Store references to price slots
 var coalPriceSlot = null;
 var stonePriceSlot = null;
 
-// Track if price button was pressed
 var showTotalPrice = false;
-var priceCalculatedForChunkCount = 0; // Track how many chunks price was calculated for
+var priceCalculatedForChunkCount = 0;
 
-// Allowed items for chunk appearance
 var ALLOWED_ITEMS = [
     "oak_log", "oak_wood", "stripped_oak_log", "stripped_oak_wood", "oak_planks", "oak_stairs", "oak_slab", "oak_fence", "oak_fence_gate", "oak_door", "oak_trapdoor", "oak_pressure_plate", "oak_button",
     "spruce_log", "spruce_wood", "stripped_spruce_log", "stripped_spruce_wood", "spruce_planks", "spruce_stairs", "spruce_slab", "spruce_fence", "spruce_fence_gate", "spruce_door", "spruce_trapdoor", "spruce_pressure_plate", "spruce_button",
@@ -98,45 +84,33 @@ var ALLOWED_ITEMS = [
     "white_wool", "orange_wool", "magenta_wool", "light_blue_wool", "yellow_wool", "lime_wool", "pink_wool", "gray_wool", "light_gray_wool", "cyan_wool", "purple_wool", "blue_wool", "brown_wool", "green_wool", "red_wool", "black_wool"
 ];
 
-// Global key for shared selection data (stores absolute chunk coordinates)
 var GLOBAL_SELECTION_KEY = "chunkmap_selected";
-
-// Global key for claimed chunks data (shared across all chunk map blocks)
 var GLOBAL_CLAIMS_KEY = "chunkmap_claims";
-
-// Global key prefix for viewport data (per-block)
 var VIEWPORT_KEY_PREFIX = "chunkmap_viewport_";
 
-// ===== Initialize chunk boundaries =====
 function calculateChunkBoundaries() {
-    // Round down to chunk boundaries (each chunk is 16 blocks)
     minChunkX = Math.floor(WORLD_MIN_X / 16);
     minChunkZ = Math.floor(WORLD_MIN_Z / 16);
     var maxChunkX = Math.floor(WORLD_MAX_X / 16);
     var maxChunkZ = Math.floor(WORLD_MAX_Z / 16);
     
-    // Calculate map dimensions in chunks
-    mapCols = maxChunkX - minChunkX + 1;  // +1 because inclusive
+    mapCols = maxChunkX - minChunkX + 1;
     mapRows = maxChunkZ - minChunkZ + 1;
 }
 
-// ===== Set block model (optional - customize as needed) =====
 function init(e){
-    // e.block.setModel("refurbished_furniture:computer");
     calculateChunkBoundaries();
 }
 
-// ===== Right-click entry point =====
 function interact(e) {
     var api = e.API;
-    var p   = e.player;
+    var p = e.player;
     
     calculateChunkBoundaries();
     lastBlock = e.block;
     openChunkMapGui(p, api);
 }
 
-// ===== Convert viewport slot index to global chunk position =====
 function viewportToGlobal(slotIndex) {
     var localRow = Math.floor(slotIndex / viewportCols);
     var localCol = slotIndex % viewportCols;
@@ -145,7 +119,6 @@ function viewportToGlobal(slotIndex) {
     return globalRow * mapCols + globalCol;
 }
 
-// ===== Convert global position to absolute chunk coordinates =====
 function globalPosToChunkCoords(globalPos) {
     var relativeRow = Math.floor(globalPos / mapCols);
     var relativeCol = globalPos % mapCols;
@@ -155,70 +128,48 @@ function globalPosToChunkCoords(globalPos) {
     };
 }
 
-// ===== Convert absolute chunk coordinates to global position (or -1 if outside bounds) =====
 function chunkCoordsToGlobalPos(chunkX, chunkZ) {
-    // Check if chunk is within current bounds
     if(chunkX < minChunkX || chunkX > minChunkX + mapCols - 1 || 
        chunkZ < minChunkZ || chunkZ > minChunkZ + mapRows - 1){
-        return -1;  // Outside current map bounds
+        return -1;
     }
     var relativeCol = chunkX - minChunkX;
     var relativeRow = chunkZ - minChunkZ;
     return relativeRow * mapCols + relativeCol;
 }
 
-// ===== Convert global position to viewport slot index (or -1 if not visible) =====
 function globalToViewport(globalPos) {
     var globalRow = Math.floor(globalPos / mapCols);
     var globalCol = globalPos % mapCols;
     
-    // Check if this position is within current viewport
     if (globalRow >= viewportY && globalRow < viewportY + viewportRows &&
         globalCol >= viewportX && globalCol < viewportX + viewportCols) {
         var localRow = globalRow - viewportY;
         var localCol = globalCol - viewportX;
         return localRow * viewportCols + localCol;
     }
-    return -1;  // Not in viewport
+    return -1;
 }
 
-// ===== Open chunk map GUI =====
+function getChunkItem(globalPos, W, claimedChunks) {
+    var chunkCoords = globalPosToChunkCoords(globalPos);
+    var protectedArea = isChunkProtected(chunkCoords.chunkX, chunkCoords.chunkZ);
+    
+    if(protectedArea){
+        var barrierItem = W.createItem("minecraft:barrier", 1);
+        barrierItem.setCustomName("§c" + protectedArea.name);
+        return barrierItem.getItemNbt().toJsonString();
+    } else {
+        var key = "chunk_" + globalPos;
+        return claimedChunks[key] || null;
+    }
+}
+
 function openChunkMapGui(player, api){
     if(!lastBlock) return;
     var W = lastBlock.getWorld();
     var blockId = lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ();
 
-    // Load claimed chunks from GLOBAL storage
-    var claimedChunks = {};
-    if(W.getStoreddata().has(GLOBAL_CLAIMS_KEY)){
-        try {
-            claimedChunks = JSON.parse(W.getStoreddata().get(GLOBAL_CLAIMS_KEY));
-        } catch(e) {
-            claimedChunks = {};
-        }
-    }
-    
-    // Convert claimed chunks data to storedSlotItems array
-    storedSlotItems = [];
-    for (var i = 0; i < mapRows * mapCols; i++){
-        var key = "chunk_" + i;
-        
-        // Check if this chunk is in a protected area
-        var chunkCoords = globalPosToChunkCoords(i);
-        var protectedArea = isChunkProtected(chunkCoords.chunkX, chunkCoords.chunkZ);
-        
-        if(protectedArea){
-            // Create barrier item with protected area name
-            var barrierItem = W.createItem("minecraft:barrier", 1);
-            barrierItem.setCustomName("§c" + protectedArea.name);
-            storedSlotItems.push(barrierItem.getItemNbt().toJsonString());
-        } else {
-            // Use claimed chunk data or null
-            storedSlotItems.push(claimedChunks[key] || null);
-        }
-    }
-
-    // Load selected chunks from GLOBAL storage (stores absolute chunk coordinates)
     if(W.getStoreddata().has(GLOBAL_SELECTION_KEY)){
         try {
             var storedData = JSON.parse(W.getStoreddata().get(GLOBAL_SELECTION_KEY));
@@ -230,7 +181,6 @@ function openChunkMapGui(player, api){
         selectedChunks = [];
     }
 
-    // Load viewport position (per-block storage)
     var viewportKey = VIEWPORT_KEY_PREFIX + blockId;
     if(W.getStoreddata().has(viewportKey)){
         try {
@@ -250,25 +200,36 @@ function openChunkMapGui(player, api){
 }
 
 function renderChunkMapGui(player, api){
+    if(!lastBlock) return;
+    var W = lastBlock.getWorld();
+    
     slotHighlights = {};
     nextLineId = 1000;
     
     guiRef = api.createCustomGui(Grid_GUI, 176, 166, false, player);
     mySlots = [];
 
-    // Create viewport
+    var claimedChunks = {};
+    if(W.getStoreddata().has(GLOBAL_CLAIMS_KEY)){
+        try {
+            claimedChunks = JSON.parse(W.getStoreddata().get(GLOBAL_CLAIMS_KEY));
+        } catch(e) {
+            claimedChunks = {};
+        }
+    }
+
     for(var r=0; r<viewportRows; r++){
         for(var c=0; c<viewportCols; c++){
             var x = offsetX + c*(slotSize+slotPadding);
             var y = offsetY + r*(slotSize+slotPadding);
             var slot = guiRef.addItemSlot(x, y);
             
-            // Get global position for this viewport slot
             var globalPos = (viewportY + r) * mapCols + (viewportX + c);
+            var itemNbt = getChunkItem(globalPos, W, claimedChunks);
             
-            if(storedSlotItems[globalPos]){
+            if(itemNbt){
                 try { 
-                    slot.setStack(player.world.createItemFromNbt(api.stringToNbt(storedSlotItems[globalPos]))); 
+                    slot.setStack(player.world.createItemFromNbt(api.stringToNbt(itemNbt))); 
                 } catch(e){}
             }
 
@@ -276,7 +237,6 @@ function renderChunkMapGui(player, api){
         }
     }
 
-    // Draw highlights for selected chunks that are visible in viewport
     for(var i = 0; i < selectedChunks.length; i++){
         var chunk = selectedChunks[i];
         var globalPos = chunkCoordsToGlobalPos(chunk.chunkX, chunk.chunkZ);
@@ -288,7 +248,6 @@ function renderChunkMapGui(player, api){
         }
     }
 
-    // Add navigation buttons - compass pattern with empty center
     var navY = 165;
     var navCenterX = 275;
     var btnSize = 20;
@@ -300,73 +259,51 @@ function renderChunkMapGui(player, api){
     guiRef.addButton(ID_RIGHT_BUTTON, "→", navCenterX + btnGap, navY, btnSize, btnSize);
     
     guiRef.addButton(ID_CLEAR_BUTTON, "Clear", 158, -15, 40, 20);
-    
     guiRef.addButton(ID_SELL_BUTTON, "Sell", 203, -15, 40, 20);
-    
-    // Add Price button
     guiRef.addButton(ID_PRICE_BUTTON, "Price", 248, -15, 40, 20);
     
-    // Display price slots below Price button (vertically stacked)
-    // Position them to the right of the chunk grid
     var priceX = 250;
     var priceY = 10;
     
-    // Coal coin slot
     coalPriceSlot = guiRef.addItemSlot(priceX, priceY);
-    
-    // Stone coin slot (below coal slot)
     stonePriceSlot = guiRef.addItemSlot(priceX, priceY + 20);
     
-    // Only show calculated prices if Price button was pressed
     if(showTotalPrice && selectedChunks.length > 0) {
         var totalChunks = selectedChunks.length;
-        
-        // Calculate raw totals
         var totalPrim = CHUNK_PRIM_PRICE * totalChunks;
         var totalSec = CHUNK_SEC_PRICE * totalChunks;
-        
-        // Convert all to secondary first (using configurable conversion rate)
         var totalInSec = (totalPrim * CURRENCY_CONVERSION_RATE) + totalSec;
-        
-        // Now convert back to primary and secondary
         var finalPrim = Math.floor(totalInSec / CURRENCY_CONVERSION_RATE);
         var finalSec = totalInSec % CURRENCY_CONVERSION_RATE;
         
-        // Set primary currency slot
         if(finalPrim > 0) {
             var primCoin = player.world.createItem(CURRENCY_PRIMARY_ITEM, Math.min(finalPrim, 64));
             coalPriceSlot.setStack(primCoin);
         }
         
-        // Set secondary currency slot
         if(finalSec > 0) {
             var secCoin = player.world.createItem(CURRENCY_SECONDARY_ITEM, Math.min(finalSec, 64));
             stonePriceSlot.setStack(secCoin);
         }
     }
     
-    // Add Claim button below price slots (only if price was calculated)
     if(showTotalPrice && priceCalculatedForChunkCount === selectedChunks.length) {
         guiRef.addButton(ID_CLAIM_BUTTON, "Claim", priceX - 2, priceY + 42, 40, 20);
     }
     
-    // Add search field and button - moved 10px to the left
     guiRef.addLabel(2, "§7Jump to X,Z:", -80, -32, 1.0, 1.0);
     guiRef.addTextField(ID_SEARCH_FIELD, -80, -20, 80, 18).setText("");
     guiRef.addButton(ID_SEARCH_BUTTON, "Go", 3, -20, 30, 18);
     
-    // Show selected chunks count - moved 20px more to the right (20 + 20 = 40) and 8px higher (168 - 8 = 160)
     var totalChunks = selectedChunks.length;
     guiRef.addLabel(ID_TOTAL_LABEL, "§7Selected: §6" + totalChunks + " §7chunks", 40, 160, 0.8, 0.8);
     
-    // Display chunk info at bottom - moved 30px to the left (5 - 30 = -25)
     if(currentChunkInfo){
         guiRef.addLabel(ID_CHUNK_INFO_LABEL, currentChunkInfo, -25, 195, 1.0, 1.0);
     } else {
         guiRef.addLabel(ID_CHUNK_INFO_LABEL, "§7Click a chunk to view coordinates", -25, 195, 1.0, 1.0);
     }
     
-    // Add appearance customization field and button at bottom left
     guiRef.addLabel(3, "§7eg:melon", -150, 178, 0.8, 0.8);
     guiRef.addTextField(ID_APPEARANCE_FIELD, -150, 188, 80, 18).setText("");
     guiRef.addButton(ID_APPEARANCE_BUTTON, "→", -67, 188, 20, 18);
@@ -383,13 +320,12 @@ function drawHighlight(index) {
     var y = offsetY + row * (slotSize + slotPadding) - 1;
     var w = slotSize, h = slotSize;
     
-    // Draw 4 lines to outline the slot (2 pixels thick, 2 pixels closer to center)
     var inset = 2;
     slotHighlights[index] = [
-        guiRef.addColoredLine(nextLineId++, x + inset, y + inset, x + w - inset, y + inset, 0xADD8E6, 2),           // Top
-        guiRef.addColoredLine(nextLineId++, x + inset, y + h - inset, x + w - inset, y + h - inset, 0xADD8E6, 2),   // Bottom
-        guiRef.addColoredLine(nextLineId++, x + inset, y + inset, x + inset, y + h - inset, 0xADD8E6, 2),           // Left
-        guiRef.addColoredLine(nextLineId++, x + w - inset, y + inset, x + w - inset, y + h - inset, 0xADD8E6, 2)    // Right
+        guiRef.addColoredLine(nextLineId++, x + inset, y + inset, x + w - inset, y + inset, 0xADD8E6, 2),
+        guiRef.addColoredLine(nextLineId++, x + inset, y + h - inset, x + w - inset, y + h - inset, 0xADD8E6, 2),
+        guiRef.addColoredLine(nextLineId++, x + inset, y + inset, x + inset, y + h - inset, 0xADD8E6, 2),
+        guiRef.addColoredLine(nextLineId++, x + w - inset, y + inset, x + w - inset, y + h - inset, 0xADD8E6, 2)
     ];
 }
 
@@ -407,31 +343,24 @@ function removeHighlight(index) {
 function toggleHighlight(index, player, api) {
     if (!guiRef) return;
     
-    // Convert viewport index to global position
     var globalPos = viewportToGlobal(index);
-    
-    // Get absolute chunk coordinates
     var chunk = globalPosToChunkCoords(globalPos);
     var chunkX = chunk.chunkX;
     var chunkZ = chunk.chunkZ;
     
-    // Check if chunk is in a protected area
     var protectedArea = isChunkProtected(chunkX, chunkZ);
     if(protectedArea){
         player.message("§cCannot select chunks in " + protectedArea.name + "!");
         return;
     }
     
-    // Calculate block coordinates (each chunk is 16x16 blocks)
     var minX = chunkX * 16;
     var minZ = chunkZ * 16;
     var maxX = minX + 15;
     var maxZ = minZ + 15;
     
-    // Update chunk info display
     currentChunkInfo = "§6Chunk [" + chunkX + "," + chunkZ + "] §7→ Blocks: §f" + minX + "," + minZ + " §7to §f" + maxX + "," + maxZ;
     
-    // Check if this chunk is already selected
     var existingIndex = -1;
     for(var i = 0; i < selectedChunks.length; i++){
         if(selectedChunks[i].chunkX === chunkX && selectedChunks[i].chunkZ === chunkZ){
@@ -441,46 +370,35 @@ function toggleHighlight(index, player, api) {
     }
     
     if (existingIndex !== -1) {
-        // Remove from selectedChunks
         selectedChunks.splice(existingIndex, 1);
         
-        // Save updated selection to GLOBAL storage
         if(lastBlock){
             var W = lastBlock.getWorld();
             W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
         }
         
-        // Reset price display flag when deselecting (chunk count changed)
         showTotalPrice = false;
         priceCalculatedForChunkCount = 0;
         
-        // Recreate GUI to properly remove highlight and rebuild others
         renderChunkMapGui(player, api);
     } else {
-        // Add to selectedChunks and draw highlight
         selectedChunks.push({chunkX: chunkX, chunkZ: chunkZ});
         
-        // Save selected chunks to GLOBAL storage
         if(lastBlock){
             var W = lastBlock.getWorld();
             W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
         }
         
-        // Check if we need to recreate GUI (if price was calculated, we need to hide Claim button)
         var needsRecreate = showTotalPrice;
         
-        // Reset price display flag when selecting (chunk count changed)
         showTotalPrice = false;
         priceCalculatedForChunkCount = 0;
         
         if(needsRecreate) {
-            // Recreate GUI to hide Claim button and clear price slots
             renderChunkMapGui(player, api);
         } else {
-            // Just draw highlight and update labels
             drawHighlight(index);
             
-            // Update the chunk info label and selected count without recreating GUI
             try {
                 var label = guiRef.getComponent(ID_CHUNK_INFO_LABEL);
                 if(label) label.setText(currentChunkInfo);
@@ -502,24 +420,26 @@ function saveViewportPosition(){
     W.getStoreddata().put(viewportKey, JSON.stringify({x: viewportX, y: viewportY}));
 }
 
-// ===== Check if chunk is in a protected area =====
 function isChunkProtected(chunkX, chunkZ) {
     for(var i = 0; i < PROTECTED_AREAS.length; i++){
         var area = PROTECTED_AREAS[i];
-        if(chunkX >= area.minChunkX && chunkX <= area.maxChunkX &&
-           chunkZ >= area.minChunkZ && chunkZ <= area.maxChunkZ){
+        var minChunkX = Math.floor(area.minX / 16);
+        var minChunkZ = Math.floor(area.minZ / 16);
+        var maxChunkX = Math.floor(area.maxX / 16);
+        var maxChunkZ = Math.floor(area.maxZ / 16);
+        
+        if(chunkX >= minChunkX && chunkX <= maxChunkX &&
+           chunkZ >= minChunkZ && chunkZ <= maxChunkZ){
             return area;
         }
     }
     return null;
 }
 
-// ===== Check if any selected chunks are already claimed =====
 function hasClaimedChunksInSelection() {
     if(!lastBlock) return false;
     var W = lastBlock.getWorld();
     
-    // Load claimed chunks from global storage
     var claimedChunks = {};
     if(W.getStoreddata().has(GLOBAL_CLAIMS_KEY)){
         try {
@@ -543,12 +463,10 @@ function hasClaimedChunksInSelection() {
     return false;
 }
 
-// ===== Check if player has enough currency in inventory =====
 function hasEnoughCurrency(player, coalNeeded, stoneNeeded) {
     var coalCount = 0;
     var stoneCount = 0;
     
-    // Count coins in player's inventory
     var inv = player.getInventory();
     for(var i = 0; i < inv.getSize(); i++){
         var stack = inv.getSlot(i);
@@ -564,19 +482,16 @@ function hasEnoughCurrency(player, coalNeeded, stoneNeeded) {
         }
     }
     
-    // Convert to total stone for comparison (using configurable conversion rate)
     var totalStonePlayer = (coalCount * CURRENCY_CONVERSION_RATE) + stoneCount;
     var totalStoneNeeded = (coalNeeded * CURRENCY_CONVERSION_RATE) + stoneNeeded;
     
     return totalStonePlayer >= totalStoneNeeded;
 }
 
-// ===== Remove currency from player's inventory =====
 function removeCurrency(player, coalNeeded, stoneNeeded) {
     var totalStoneNeeded = (coalNeeded * CURRENCY_CONVERSION_RATE) + stoneNeeded;
     var inv = player.getInventory();
     
-    // First remove stone coins
     for(var i = 0; i < inv.getSize() && totalStoneNeeded > 0; i++){
         var stack = inv.getSlot(i);
         if(stack && stack.getName() === CURRENCY_SECONDARY_ITEM){
@@ -591,7 +506,6 @@ function removeCurrency(player, coalNeeded, stoneNeeded) {
         }
     }
     
-    // Then remove coal coins (convert to stone)
     for(var i = 0; i < inv.getSize() && totalStoneNeeded > 0; i++){
         var stack = inv.getSlot(i);
         if(stack && stack.getName() === CURRENCY_PRIMARY_ITEM){
@@ -607,7 +521,6 @@ function removeCurrency(player, coalNeeded, stoneNeeded) {
                 var overpaid = (coalsToRemove * CURRENCY_CONVERSION_RATE) - totalStoneNeeded;
                 totalStoneNeeded = 0;
                 
-                // Give change back if overpaid
                 if(overpaid > 0){
                     var changeItem = player.world.createItem(CURRENCY_SECONDARY_ITEM, overpaid);
                     player.giveItem(changeItem);
@@ -617,7 +530,6 @@ function removeCurrency(player, coalNeeded, stoneNeeded) {
     }
 }
 
-// ===== Claim selected chunks =====
 function claimSelectedChunks(player, api) {
     if(selectedChunks.length === 0) {
         player.message("§cNo chunks selected to claim!");
@@ -627,7 +539,6 @@ function claimSelectedChunks(player, api) {
     if(!lastBlock) return;
     var W = lastBlock.getWorld();
     
-    // Load current claimed chunks
     var claimedChunks = {};
     if(W.getStoreddata().has(GLOBAL_CLAIMS_KEY)){
         try {
@@ -637,7 +548,6 @@ function claimSelectedChunks(player, api) {
         }
     }
     
-    // Create lime_wool item NBT with player's name
     var defaultItem = W.createItem("minecraft:lime_wool", 1);
     defaultItem.setCustomName("§6" + player.getName());
     var defaultNbt = defaultItem.getItemNbt().toJsonString();
@@ -645,11 +555,9 @@ function claimSelectedChunks(player, api) {
     var claimedCount = 0;
     var playerName = player.getName();
     
-    // Always ensure authority and inclusion exist (safe to run even if already exists)
     api.executeCommand(W, "protect add " + playerName);
     api.executeCommand(W, "protect inclusion add " + playerName + " player " + playerName);
     
-    // Fill all selected chunks with lime_wool and create individual protection shapes
     for(var i = 0; i < selectedChunks.length; i++){
         var chunk = selectedChunks[i];
         var globalPos = chunkCoordsToGlobalPos(chunk.chunkX, chunk.chunkZ);
@@ -657,16 +565,13 @@ function claimSelectedChunks(player, api) {
         if(globalPos !== -1){
             var key = "chunk_" + globalPos;
             claimedChunks[key] = defaultNbt;
-            storedSlotItems[globalPos] = defaultNbt;
             claimedCount++;
             
-            // Calculate chunk boundaries (16x16 blocks, full build height -63 to 139)
             var minX = chunk.chunkX * 16;
             var minZ = chunk.chunkZ * 16;
             var maxX = minX + 15;
             var maxZ = minZ + 15;
             
-            // Create individual protection shape for this chunk
             var regionName = "chunk_" + chunk.chunkX + "_" + chunk.chunkZ;
             
             api.executeCommand(W, "protect shape start");
@@ -675,21 +580,16 @@ function claimSelectedChunks(player, api) {
         }
     }
     
-    // Save back to global storage
     W.getStoreddata().put(GLOBAL_CLAIMS_KEY, JSON.stringify(claimedChunks));
     
     player.message("§aClaimed " + claimedCount + " chunk(s)!");
     
-    // Clear all selections after claiming
     selectedChunks = [];
     W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
     
-    // Recreate GUI to show the dirt blocks without highlights
     renderChunkMapGui(player, api);
 }
 
-
-// ===== Handle slot clicks =====
 function customGuiSlotClicked(e){
     var clickedSlot = e.slot;
     var player = e.player;
@@ -697,29 +597,23 @@ function customGuiSlotClicked(e){
 
     var slotIndex = mySlots.indexOf(clickedSlot);
     
-    // Only process if it's one of our viewport slots
     if(slotIndex === -1) return;
     
-    // Toggle highlight on this slot
     toggleHighlight(slotIndex, player, api);
 }
 
-// ===== Handle button clicks =====
 function customGuiButton(e){
     var player = e.player;
     var api = e.API;
     
     if(e.buttonId === ID_CLEAR_BUTTON){
-        // Clear all selections and recreate GUI
         selectedChunks = [];
         
-        // Save cleared selection to GLOBAL storage
         if(lastBlock){
             var W = lastBlock.getWorld();
             W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
         }
         
-        // Reset price display flag
         showTotalPrice = false;
         priceCalculatedForChunkCount = 0;
         
@@ -727,13 +621,11 @@ function customGuiButton(e){
     }
     
     if(e.buttonId === ID_CLAIM_BUTTON){
-        // Check if any selected chunks are already claimed
         if(hasClaimedChunksInSelection()) {
             player.message("§cChunk already claimed!");
             return;
         }
         
-        // Check if any selected chunks are in protected areas
         for(var i = 0; i < selectedChunks.length; i++){
             var chunk = selectedChunks[i];
             var protectedArea = isChunkProtected(chunk.chunkX, chunk.chunkZ);
@@ -743,35 +635,27 @@ function customGuiButton(e){
             }
         }
         
-        // Calculate total cost
         var totalChunks = selectedChunks.length;
         var totalCoal = CHUNK_PRIM_PRICE * totalChunks;
         var totalStone = CHUNK_SEC_PRICE * totalChunks;
         
-        // Convert to final amounts
         var totalInStone = (totalCoal * CURRENCY_CONVERSION_RATE) + totalStone;
         var finalCoal = Math.floor(totalInStone / CURRENCY_CONVERSION_RATE);
         var finalStone = totalInStone % CURRENCY_CONVERSION_RATE;
         
-        // Check if player has enough currency
         if(!hasEnoughCurrency(player, finalCoal, finalStone)){
             player.message("§cNot enough currency!");
             return;
         }
         
-        // Remove currency from player
         removeCurrency(player, finalCoal, finalStone);
-        
-        // Claim the chunks
         claimSelectedChunks(player, api);
         
-        // Reset price display flag after claiming
         showTotalPrice = false;
         priceCalculatedForChunkCount = 0;
     }
     
     if(e.buttonId === ID_SELL_BUTTON){
-        // Check if any chunks are selected
         if(selectedChunks.length === 0){
             player.message("§cNo chunks selected to sell!");
             return;
@@ -780,7 +664,6 @@ function customGuiButton(e){
         if(!lastBlock) return;
         var W = lastBlock.getWorld();
         
-        // Load current claimed chunks
         var claimedChunks = {};
         if(W.getStoreddata().has(GLOBAL_CLAIMS_KEY)){
             try {
@@ -794,7 +677,6 @@ function customGuiButton(e){
         var totalCoalReturn = 0;
         var totalStoneReturn = 0;
         
-        // Check and sell only chunks owned by this player
         for(var i = 0; i < selectedChunks.length; i++){
             var chunk = selectedChunks[i];
             var globalPos = chunkCoordsToGlobalPos(chunk.chunkX, chunk.chunkZ);
@@ -806,17 +688,12 @@ function customGuiButton(e){
                         var item = player.world.createItemFromNbt(api.stringToNbt(claimedChunks[key]));
                         var itemName = item.getDisplayName();
                         
-                        // Check if chunk belongs to this player
                         if(itemName === "§6" + player.getName()){
-                            // Remove chunk
                             delete claimedChunks[key];
-                            storedSlotItems[globalPos] = null;
                             
-                            // Remove protection for this chunk
                             var regionName = "chunk_" + chunk.chunkX + "_" + chunk.chunkZ;
                             api.executeCommand(W, "protect shape remove " + regionName + " from " + player.getName());
                             
-                            // Calculate refund (configurable percentage of original price)
                             totalCoalReturn += CHUNK_PRIM_PRICE * CHUNK_SELL_PERCENTAGE;
                             totalStoneReturn += CHUNK_SEC_PRICE * CHUNK_SELL_PERCENTAGE;
                             soldCount++;
@@ -831,10 +708,8 @@ function customGuiButton(e){
             return;
         }
         
-        // Save updated claims back to global storage
         W.getStoreddata().put(GLOBAL_CLAIMS_KEY, JSON.stringify(claimedChunks));
         
-        // Convert and give currency back to player
         var totalInStone = (totalCoalReturn * CURRENCY_CONVERSION_RATE) + totalStoneReturn;
         var finalCoal = Math.floor(totalInStone / CURRENCY_CONVERSION_RATE);
         var finalStone = Math.floor(totalInStone % CURRENCY_CONVERSION_RATE);
@@ -851,16 +726,13 @@ function customGuiButton(e){
         
         player.message("§aSold " + soldCount + " chunk(s) for " + finalCoal + " coal and " + finalStone + " stone!");
         
-        // Reset price display flag after selling
         showTotalPrice = false;
         priceCalculatedForChunkCount = 0;
         
-        // Recreate GUI to remove sold chunks
         renderChunkMapGui(player, api);
     }
     
     if(e.buttonId === ID_PRICE_BUTTON){
-        // Calculate and show total price based on current selections
         showTotalPrice = true;
         priceCalculatedForChunkCount = selectedChunks.length;
         renderChunkMapGui(player, api);
@@ -877,13 +749,11 @@ function customGuiButton(e){
             return;
         }
         
-        // Check if any chunks are selected
         if(selectedChunks.length === 0){
             player.message("§cNo chunks selected! Select chunks first.");
             return;
         }
         
-        // Check if item is in the allowed list
         var isAllowed = false;
         for(var i = 0; i < ALLOWED_ITEMS.length; i++){
             if(ALLOWED_ITEMS[i] === itemInput){
@@ -897,13 +767,11 @@ function customGuiButton(e){
             return;
         }
         
-        // Add minecraft: prefix
         var itemName = "minecraft:" + itemInput;
         
         if(!lastBlock) return;
         var W = lastBlock.getWorld();
         
-        // Load current claimed chunks
         var claimedChunks = {};
         if(W.getStoreddata().has(GLOBAL_CLAIMS_KEY)){
             try {
@@ -913,7 +781,6 @@ function customGuiButton(e){
             }
         }
         
-        // Update only the selected chunks that are owned by this player
         var updatedCount = 0;
         for(var i = 0; i < selectedChunks.length; i++){
             var chunk = selectedChunks[i];
@@ -926,13 +793,10 @@ function customGuiButton(e){
                         var item = player.world.createItemFromNbt(api.stringToNbt(claimedChunks[key]));
                         var ownerName = item.getDisplayName();
                         
-                        // Check if this chunk belongs to the player
                         if(ownerName === "§6" + player.getName()) {
-                            // Create new item with player's name
                             var newItem = W.createItem(itemName, 1);
                             newItem.setCustomName("§6" + player.getName());
                             claimedChunks[key] = newItem.getItemNbt().toJsonString();
-                            storedSlotItems[globalPos] = claimedChunks[key];
                             updatedCount++;
                         }
                     } catch(e) {}
@@ -945,16 +809,13 @@ function customGuiButton(e){
             return;
         }
         
-        // Save updated chunks
         W.getStoreddata().put(GLOBAL_CLAIMS_KEY, JSON.stringify(claimedChunks));
         
         player.message("§aUpdated appearance for " + updatedCount + " selected chunk(s) to " + itemInput + "!");
         
-        // Clear selections after updating
         selectedChunks = [];
         W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
         
-        // Recreate GUI to show new appearance
         renderChunkMapGui(player, api);
     }
     
@@ -969,7 +830,6 @@ function customGuiButton(e){
             return;
         }
         
-        // Parse input "x,z"
         var parts = input.split(/[,\s]+/);
         if(parts.length < 2){
             player.message("§cInvalid format. Use: X,Z (e.g., 100,200)");
@@ -984,11 +844,9 @@ function customGuiButton(e){
             return;
         }
         
-        // Convert block coordinates to chunk coordinates
         var chunkX = Math.floor(blockX / 16);
         var chunkZ = Math.floor(blockZ / 16);
         
-        // Check if chunk is within map bounds
         if(chunkX < minChunkX || chunkX > minChunkX + mapCols - 1 || 
            chunkZ < minChunkZ || chunkZ > minChunkZ + mapRows - 1){
             player.message("§cChunk [" + chunkX + "," + chunkZ + "] is outside map bounds ([" + 
@@ -997,18 +855,13 @@ function customGuiButton(e){
             return;
         }
         
-        // Calculate global position
         var globalPos = chunkCoordsToGlobalPos(chunkX, chunkZ);
-        
-        // Calculate relative position for viewport
         var relativeCol = chunkX - minChunkX;
         var relativeRow = chunkZ - minChunkZ;
         
-        // Center viewport on this chunk
         viewportX = Math.max(0, Math.min(relativeCol - Math.floor(viewportCols / 2), mapCols - viewportCols));
         viewportY = Math.max(0, Math.min(relativeRow - Math.floor(viewportRows / 2), mapRows - viewportRows));
         
-        // Add to selected chunks if not already selected
         var alreadySelected = false;
         for(var i = 0; i < selectedChunks.length; i++){
             if(selectedChunks[i].chunkX === chunkX && selectedChunks[i].chunkZ === chunkZ){
@@ -1020,24 +873,19 @@ function customGuiButton(e){
         if(!alreadySelected){
             selectedChunks.push({chunkX: chunkX, chunkZ: chunkZ});
             
-            // Save selection to GLOBAL storage
             if(lastBlock){
                 var W = lastBlock.getWorld();
                 W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
             }
         }
         
-        // Update chunk info
         var minX = chunkX * 16;
         var minZ = chunkZ * 16;
         var maxX = minX + 15;
         var maxZ = minZ + 15;
         currentChunkInfo = "§6Chunk [" + chunkX + "," + chunkZ + "] §7→ Blocks: §f" + minX + "," + minZ + " §7to §f" + maxX + "," + maxZ;
         
-        // Save viewport position
         saveViewportPosition();
-        
-        // Recreate GUI to show new viewport and highlight
         renderChunkMapGui(player, api);
         
         player.message("§aJumped to chunk [" + chunkX + "," + chunkZ + "]");
@@ -1076,7 +924,6 @@ function customGuiButton(e){
     }
 }
 
-// ===== Persist chunk map contents =====
 function customGuiClosed(e){
     if(e.gui.getID() !== Grid_GUI) return;
     var player = e.player;
@@ -1084,7 +931,6 @@ function customGuiClosed(e){
     var W = player.getWorld();
     if(!lastBlock) return;
 
-    // Load current claimed chunks
     var claimedChunks = {};
     if(W.getStoreddata().has(GLOBAL_CLAIMS_KEY)){
         try {
@@ -1094,11 +940,17 @@ function customGuiClosed(e){
         }
     }
     
-    // Save items for visible viewport slots
     for(var i = 0; i < mySlots.length; i++){
         var globalPos = viewportToGlobal(i);
         var st = mySlots[i].getStack();
         var key = "chunk_" + globalPos;
+        
+        var chunkCoords = globalPosToChunkCoords(globalPos);
+        var protectedArea = isChunkProtected(chunkCoords.chunkX, chunkCoords.chunkZ);
+        
+        if(protectedArea) {
+            continue;
+        }
         
         if(!st || st.getName() === "minecraft:air"){
             delete claimedChunks[key];
@@ -1107,6 +959,5 @@ function customGuiClosed(e){
         }
     }
     
-    // Save back to global storage
     W.getStoreddata().put(GLOBAL_CLAIMS_KEY, JSON.stringify(claimedChunks));
 }
