@@ -40,11 +40,13 @@ var ID_CHUNK_INFO_LABEL = 55;
 var ID_SEARCH_FIELD = 56;
 var ID_SEARCH_BUTTON = 57;
 var ID_CLAIM_BUTTON = 58;
-var ID_UNCLAIM_BUTTON = 59;
+var ID_SELL_BUTTON = 59;
 var ID_PRICE_BUTTON = 60;
 var ID_COAL_PRICE_SLOT = 61;
 var ID_STONE_PRICE_SLOT = 62;
 var ID_TOTAL_LABEL = 63;
+var ID_APPEARANCE_FIELD = 64;
+var ID_APPEARANCE_BUTTON = 65;
 
 var currentChunkInfo = "";
 
@@ -60,8 +62,31 @@ var stonePriceSlot = null;
 var showTotalPrice = false;
 var priceCalculatedForChunkCount = 0; // Track how many chunks price was calculated for
 
+// Allowed items for chunk appearance
+var ALLOWED_ITEMS = [
+    "oak_log", "oak_wood", "stripped_oak_log", "stripped_oak_wood", "oak_planks", "oak_stairs", "oak_slab", "oak_fence", "oak_fence_gate", "oak_door", "oak_trapdoor", "oak_pressure_plate", "oak_button",
+    "spruce_log", "spruce_wood", "stripped_spruce_log", "stripped_spruce_wood", "spruce_planks", "spruce_stairs", "spruce_slab", "spruce_fence", "spruce_fence_gate", "spruce_door", "spruce_trapdoor", "spruce_pressure_plate", "spruce_button",
+    "birch_log", "birch_wood", "stripped_birch_log", "stripped_birch_wood", "birch_planks", "birch_stairs", "birch_slab", "birch_fence", "birch_fence_gate", "birch_door", "birch_trapdoor", "birch_pressure_plate", "birch_button",
+    "jungle_log", "jungle_wood", "stripped_jungle_log", "stripped_jungle_wood", "jungle_planks", "jungle_stairs", "jungle_slab", "jungle_fence", "jungle_fence_gate", "jungle_door", "jungle_trapdoor", "jungle_pressure_plate", "jungle_button",
+    "acacia_log", "acacia_wood", "stripped_acacia_log", "stripped_acacia_wood", "acacia_planks", "acacia_stairs", "acacia_slab", "acacia_fence", "acacia_fence_gate", "acacia_door", "acacia_trapdoor", "acacia_pressure_plate", "acacia_button",
+    "dark_oak_log", "dark_oak_wood", "stripped_dark_oak_log", "stripped_dark_oak_wood", "dark_oak_planks", "dark_oak_stairs", "dark_oak_slab", "dark_oak_fence", "dark_oak_fence_gate", "dark_oak_door", "dark_oak_trapdoor", "dark_oak_pressure_plate", "dark_oak_button",
+    "mangrove_log", "mangrove_wood", "stripped_mangrove_log", "stripped_mangrove_wood", "mangrove_planks", "mangrove_stairs", "mangrove_slab", "mangrove_fence", "mangrove_fence_gate", "mangrove_door", "mangrove_trapdoor", "mangrove_pressure_plate", "mangrove_button",
+    "cherry_log", "cherry_wood", "stripped_cherry_log", "stripped_cherry_wood", "cherry_planks", "cherry_stairs", "cherry_slab", "cherry_fence", "cherry_fence_gate", "cherry_door", "cherry_trapdoor", "cherry_pressure_plate", "cherry_button",
+    "bamboo_block", "stripped_bamboo_block", "bamboo_planks", "bamboo_mosaic", "bamboo_stairs", "bamboo_mosaic_stairs", "bamboo_slab", "bamboo_mosaic_slab", "bamboo_fence", "bamboo_fence_gate", "bamboo_door", "bamboo_trapdoor", "bamboo_pressure_plate", "bamboo_button",
+    "crimson_stem", "crimson_hyphae", "stripped_crimson_stem", "stripped_crimson_hyphae", "crimson_planks", "crimson_stairs", "crimson_slab", "crimson_fence", "crimson_fence_gate", "crimson_door", "crimson_trapdoor", "crimson_pressure_plate", "crimson_button",
+    "warped_stem", "warped_hyphae", "stripped_warped_stem", "stripped_warped_hyphae", "warped_planks", "warped_stairs", "warped_slab", "warped_fence", "warped_fence_gate", "warped_door", "warped_trapdoor", "warped_pressure_plate", "warped_button",
+    "stone", "stone_stairs", "stone_slab", "stone_pressure_plate", "stone_button", "cobblestone", "cobblestone_stairs", "cobblestone_slab", "cobblestone_wall", "mossy_cobblestone", "mossy_cobblestone_stairs", "mossy_cobblestone_slab", "mossy_cobblestone_wall",
+    "smooth_stone", "smooth_stone_slab", "stone_bricks", "cracked_stone_bricks", "stone_brick_stairs", "stone_brick_slab", "stone_brick_wall", "chiseled_stone_bricks", "mossy_stone_bricks", "mossy_stone_brick_stairs", "mossy_stone_brick_wall"
+];
+
 // Global key for shared selection data (stores absolute chunk coordinates)
 var GLOBAL_SELECTION_KEY = "chunkmap_selected";
+
+// Global key for claimed chunks data (shared across all chunk map blocks)
+var GLOBAL_CLAIMS_KEY = "chunkmap_claims";
+
+// Global key prefix for viewport data (per-block)
+var VIEWPORT_KEY_PREFIX = "chunkmap_viewport_";
 
 // ===== Initialize chunk boundaries =====
 function calculateChunkBoundaries() {
@@ -142,12 +167,23 @@ function globalToViewport(globalPos) {
 function openChunkMapGui(player, api){
     if(!lastBlock) return;
     var W = lastBlock.getWorld();
-    var keyPrefix = "chunkmap_" + lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ() + "_";
+    var blockId = lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ();
 
-    // Load stored items for entire map
+    // Load claimed chunks from GLOBAL storage
+    var claimedChunks = {};
+    if(W.getStoreddata().has(GLOBAL_CLAIMS_KEY)){
+        try {
+            claimedChunks = JSON.parse(W.getStoreddata().get(GLOBAL_CLAIMS_KEY));
+        } catch(e) {
+            claimedChunks = {};
+        }
+    }
+    
+    // Convert claimed chunks data to storedSlotItems array
     storedSlotItems = [];
     for (var i = 0; i < mapRows * mapCols; i++){
-        storedSlotItems.push(W.getStoreddata().has(keyPrefix + i) ? W.getStoreddata().get(keyPrefix + i) : null);
+        var key = "chunk_" + i;
+        storedSlotItems.push(claimedChunks[key] || null);
     }
 
     // Load selected chunks from GLOBAL storage (stores absolute chunk coordinates)
@@ -163,9 +199,16 @@ function openChunkMapGui(player, api){
     }
 
     // Load viewport position (per-block storage)
-    if(W.getStoreddata().has(keyPrefix + "viewportX")){
-        viewportX = parseInt(W.getStoreddata().get(keyPrefix + "viewportX"));
-        viewportY = parseInt(W.getStoreddata().get(keyPrefix + "viewportY"));
+    var viewportKey = VIEWPORT_KEY_PREFIX + blockId;
+    if(W.getStoreddata().has(viewportKey)){
+        try {
+            var viewportData = JSON.parse(W.getStoreddata().get(viewportKey));
+            viewportX = viewportData.x || 0;
+            viewportY = viewportData.y || 0;
+        } catch(e) {
+            viewportX = 0;
+            viewportY = 0;
+        }
     } else {
         viewportX = 0;
         viewportY = 0;
@@ -224,12 +267,12 @@ function renderChunkMapGui(player, api){
     guiRef.addButton(ID_LEFT_BUTTON, "←", navCenterX - btnGap, navY, btnSize, btnSize);
     guiRef.addButton(ID_RIGHT_BUTTON, "→", navCenterX + btnGap, navY, btnSize, btnSize);
     
-    guiRef.addButton(ID_UNCLAIM_BUTTON, "Unclaim", 153, -15, 45, 20);
+    guiRef.addButton(ID_CLEAR_BUTTON, "Clear", 158, -15, 40, 20);
     
-    guiRef.addButton(ID_CLEAR_BUTTON, "Clear", 203, -15, 40, 20);
+    guiRef.addButton(ID_SELL_BUTTON, "Sell", 203, -15, 40, 20);
     
     // Add Price button
-    guiRef.addButton(ID_PRICE_BUTTON, "Price", 248, -15, 35, 20);
+    guiRef.addButton(ID_PRICE_BUTTON, "Price", 248, -15, 40, 20);
     
     // Display price slots below Price button (vertically stacked)
     // Position them to the right of the chunk grid
@@ -285,12 +328,17 @@ function renderChunkMapGui(player, api){
     var totalChunks = selectedChunks.length;
     guiRef.addLabel(ID_TOTAL_LABEL, "§7Selected: §6" + totalChunks + " §7chunks", 40, 160, 0.8, 0.8);
     
-    // Display chunk info at bottom
+    // Display chunk info at bottom - moved 30px to the left (5 - 30 = -25)
     if(currentChunkInfo){
-        guiRef.addLabel(ID_CHUNK_INFO_LABEL, currentChunkInfo, 5, 195, 1.0, 1.0);
+        guiRef.addLabel(ID_CHUNK_INFO_LABEL, currentChunkInfo, -25, 195, 1.0, 1.0);
     } else {
-        guiRef.addLabel(ID_CHUNK_INFO_LABEL, "§7Click a chunk to view coordinates", 5, 195, 1.0, 1.0);
+        guiRef.addLabel(ID_CHUNK_INFO_LABEL, "§7Click a chunk to view coordinates", -25, 195, 1.0, 1.0);
     }
+    
+    // Add appearance customization field and button at bottom left
+    guiRef.addLabel(3, "§7eg:melon", -80, 178, 0.8, 0.8);
+    guiRef.addTextField(ID_APPEARANCE_FIELD, -80, 188, 80, 18).setText("");
+    guiRef.addButton(ID_APPEARANCE_BUTTON, "→", 3, 188, 30, 18);
 
     player.showCustomGui(guiRef);
 }
@@ -411,29 +459,112 @@ function toggleHighlight(index, player, api) {
 function saveViewportPosition(){
     if(!lastBlock) return;
     var W = lastBlock.getWorld();
-    var keyPrefix = "chunkmap_" + lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ() + "_";
-    W.getStoreddata().put(keyPrefix + "viewportX", viewportX.toString());
-    W.getStoreddata().put(keyPrefix + "viewportY", viewportY.toString());
+    var blockId = lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ();
+    var viewportKey = VIEWPORT_KEY_PREFIX + blockId;
+    W.getStoreddata().put(viewportKey, JSON.stringify({x: viewportX, y: viewportY}));
 }
 
 // ===== Check if any selected chunks are already claimed =====
 function hasClaimedChunksInSelection() {
     if(!lastBlock) return false;
     var W = lastBlock.getWorld();
-    var keyPrefix = "chunkmap_" + lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ() + "_";
+    
+    // Load claimed chunks from global storage
+    var claimedChunks = {};
+    if(W.getStoreddata().has(GLOBAL_CLAIMS_KEY)){
+        try {
+            claimedChunks = JSON.parse(W.getStoreddata().get(GLOBAL_CLAIMS_KEY));
+        } catch(e) {
+            return false;
+        }
+    }
     
     for(var i = 0; i < selectedChunks.length; i++){
         var chunk = selectedChunks[i];
         var globalPos = chunkCoordsToGlobalPos(chunk.chunkX, chunk.chunkZ);
         
         if(globalPos !== -1){
-            // Check if this chunk has an item (is claimed)
-            if(W.getStoreddata().has(keyPrefix + globalPos)) {
+            var key = "chunk_" + globalPos;
+            if(claimedChunks[key]) {
                 return true;
             }
         }
     }
     return false;
+}
+
+// ===== Check if player has enough currency in inventory =====
+function hasEnoughCurrency(player, coalNeeded, stoneNeeded) {
+    var coalCount = 0;
+    var stoneCount = 0;
+    
+    // Count coins in player's inventory
+    var inv = player.getInventory();
+    for(var i = 0; i < inv.getSize(); i++){
+        var stack = inv.getSlot(i);
+        if(stack){
+            var itemName = stack.getName();
+            
+            if(itemName === "coins:coal_coin"){
+                coalCount += stack.getStackSize();
+            }
+            if(itemName === "coins:stone_coin"){
+                stoneCount += stack.getStackSize();
+            }
+        }
+    }
+    
+    // Convert to total stone for comparison (1 coal = 100 stone)
+    var totalStonePlayer = (coalCount * 100) + stoneCount;
+    var totalStoneNeeded = (coalNeeded * 100) + stoneNeeded;
+    
+    return totalStonePlayer >= totalStoneNeeded;
+}
+
+// ===== Remove currency from player's inventory =====
+function removeCurrency(player, coalNeeded, stoneNeeded) {
+    var totalStoneNeeded = (coalNeeded * 100) + stoneNeeded;
+    var inv = player.getInventory();
+    
+    // First remove stone coins
+    for(var i = 0; i < inv.getSize() && totalStoneNeeded > 0; i++){
+        var stack = inv.getSlot(i);
+        if(stack && stack.getName() === "coins:stone_coin"){
+            var amount = stack.getStackSize();
+            if(amount <= totalStoneNeeded){
+                inv.setSlot(i, null);
+                totalStoneNeeded -= amount;
+            } else {
+                stack.setStackSize(amount - totalStoneNeeded);
+                totalStoneNeeded = 0;
+            }
+        }
+    }
+    
+    // Then remove coal coins (convert to stone)
+    for(var i = 0; i < inv.getSize() && totalStoneNeeded > 0; i++){
+        var stack = inv.getSlot(i);
+        if(stack && stack.getName() === "coins:coal_coin"){
+            var amount = stack.getStackSize();
+            var stoneValue = amount * 100;
+            
+            if(stoneValue <= totalStoneNeeded){
+                inv.setSlot(i, null);
+                totalStoneNeeded -= stoneValue;
+            } else {
+                var coalsToRemove = Math.ceil(totalStoneNeeded / 100);
+                stack.setStackSize(amount - coalsToRemove);
+                var overpaid = (coalsToRemove * 100) - totalStoneNeeded;
+                totalStoneNeeded = 0;
+                
+                // Give change back if overpaid
+                if(overpaid > 0){
+                    var changeItem = player.world.createItem("coins:stone_coin", overpaid);
+                    player.giveItem(changeItem);
+                }
+            }
+        }
+    }
 }
 
 // ===== Claim selected chunks =====
@@ -445,7 +576,16 @@ function claimSelectedChunks(player, api) {
     
     if(!lastBlock) return;
     var W = lastBlock.getWorld();
-    var keyPrefix = "chunkmap_" + lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ() + "_";
+    
+    // Load current claimed chunks
+    var claimedChunks = {};
+    if(W.getStoreddata().has(GLOBAL_CLAIMS_KEY)){
+        try {
+            claimedChunks = JSON.parse(W.getStoreddata().get(GLOBAL_CLAIMS_KEY));
+        } catch(e) {
+            claimedChunks = {};
+        }
+    }
     
     // Create dirt item NBT with player's name
     var dirtItem = W.createItem("minecraft:dirt", 1);
@@ -453,19 +593,40 @@ function claimSelectedChunks(player, api) {
     var dirtNbt = dirtItem.getItemNbt().toJsonString();
     
     var claimedCount = 0;
+    var playerName = player.getName();
     
-    // Fill all selected chunks with dirt
+    // Always ensure authority and inclusion exist (safe to run even if already exists)
+    api.executeCommand(W, "protect add " + playerName);
+    api.executeCommand(W, "protect inclusion add " + playerName + " player " + playerName);
+    
+    // Fill all selected chunks with dirt and create individual protection shapes
     for(var i = 0; i < selectedChunks.length; i++){
         var chunk = selectedChunks[i];
         var globalPos = chunkCoordsToGlobalPos(chunk.chunkX, chunk.chunkZ);
         
         if(globalPos !== -1){
-            // Store dirt in this chunk's slot
-            W.getStoreddata().put(keyPrefix + globalPos, dirtNbt);
+            var key = "chunk_" + globalPos;
+            claimedChunks[key] = dirtNbt;
             storedSlotItems[globalPos] = dirtNbt;
             claimedCount++;
+            
+            // Calculate chunk boundaries (16x16 blocks, full build height -63 to 139)
+            var minX = chunk.chunkX * 16;
+            var minZ = chunk.chunkZ * 16;
+            var maxX = minX + 15;
+            var maxZ = minZ + 15;
+            
+            // Create individual protection shape for this chunk
+            var regionName = "chunk_" + chunk.chunkX + "_" + chunk.chunkZ;
+            
+            api.executeCommand(W, "protect shape start");
+            api.executeCommand(W, "protect shape add " + minX + " -63 " + minZ + " " + maxX + " 139 " + maxZ);
+            api.executeCommand(W, "protect shape finish " + regionName + " to " + playerName);
         }
     }
+    
+    // Save back to global storage
+    W.getStoreddata().put(GLOBAL_CLAIMS_KEY, JSON.stringify(claimedChunks));
     
     player.message("§aClaimed " + claimedCount + " chunk(s)!");
     
@@ -477,42 +638,6 @@ function claimSelectedChunks(player, api) {
     renderChunkMapGui(player, api);
 }
 
-
-// ===== Unclaim selected chunks =====
-function unclaimSelectedChunks(player, api) {
-    if(selectedChunks.length === 0) {
-        player.message("§cNo chunks selected to unclaim!");
-        return;
-    }
-    
-    if(!lastBlock) return;
-    var W = lastBlock.getWorld();
-    var keyPrefix = "chunkmap_" + lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ() + "_";
-    
-    var unclaimedCount = 0;
-    
-    // Remove items from all selected chunks
-    for(var i = 0; i < selectedChunks.length; i++){
-        var chunk = selectedChunks[i];
-        var globalPos = chunkCoordsToGlobalPos(chunk.chunkX, chunk.chunkZ);
-        
-        if(globalPos !== -1){
-            // Remove item from storage
-            W.getStoreddata().remove(keyPrefix + globalPos);
-            storedSlotItems[globalPos] = null;
-            unclaimedCount++;
-        }
-    }
-    
-    player.message("§aUnclaimed " + unclaimedCount + " chunk(s)!");
-    
-    // Clear all selections after unclaiming
-    selectedChunks = [];
-    W.getStoreddata().put(GLOBAL_SELECTION_KEY, JSON.stringify(selectedChunks));
-    
-    // Recreate GUI to remove the items without highlights
-    renderChunkMapGui(player, api);
-}
 
 // ===== Handle slot clicks =====
 function customGuiSlotClicked(e){
@@ -558,23 +683,208 @@ function customGuiButton(e){
             return;
         }
         
+        // Calculate total cost
+        var totalChunks = selectedChunks.length;
+        var totalCoal = CHUNK_COAL_PRICE * totalChunks;
+        var totalStone = CHUNK_STONE_PRICE * totalChunks;
+        
+        // Convert to final amounts
+        var totalInStone = (totalCoal * 100) + totalStone;
+        var finalCoal = Math.floor(totalInStone / 100);
+        var finalStone = totalInStone % 100;
+        
+        // Check if player has enough currency
+        if(!hasEnoughCurrency(player, finalCoal, finalStone)){
+            player.message("§cNot enough currency!");
+            return;
+        }
+        
+        // Remove currency from player
+        removeCurrency(player, finalCoal, finalStone);
+        
+        // Claim the chunks
         claimSelectedChunks(player, api);
+        
         // Reset price display flag after claiming
         showTotalPrice = false;
         priceCalculatedForChunkCount = 0;
     }
     
-    if(e.buttonId === ID_UNCLAIM_BUTTON){
-        unclaimSelectedChunks(player, api);
-        // Reset price display flag after unclaiming
+    if(e.buttonId === ID_SELL_BUTTON){
+        // Check if any chunks are selected
+        if(selectedChunks.length === 0){
+            player.message("§cNo chunks selected to sell!");
+            return;
+        }
+        
+        if(!lastBlock) return;
+        var W = lastBlock.getWorld();
+        
+        // Load current claimed chunks
+        var claimedChunks = {};
+        if(W.getStoreddata().has(GLOBAL_CLAIMS_KEY)){
+            try {
+                claimedChunks = JSON.parse(W.getStoreddata().get(GLOBAL_CLAIMS_KEY));
+            } catch(e) {
+                claimedChunks = {};
+            }
+        }
+        
+        var soldCount = 0;
+        var totalCoalReturn = 0;
+        var totalStoneReturn = 0;
+        
+        // Check and sell only chunks owned by this player
+        for(var i = 0; i < selectedChunks.length; i++){
+            var chunk = selectedChunks[i];
+            var globalPos = chunkCoordsToGlobalPos(chunk.chunkX, chunk.chunkZ);
+            
+            if(globalPos !== -1){
+                var key = "chunk_" + globalPos;
+                if(claimedChunks[key]){
+                    try {
+                        var item = player.world.createItemFromNbt(api.stringToNbt(claimedChunks[key]));
+                        var itemName = item.getDisplayName();
+                        
+                        // Check if chunk belongs to this player
+                        if(itemName === "§6" + player.getName()){
+                            // Remove chunk
+                            delete claimedChunks[key];
+                            storedSlotItems[globalPos] = null;
+                            
+                            // Remove protection for this chunk
+                            var regionName = "chunk_" + chunk.chunkX + "_" + chunk.chunkZ;
+                            api.executeCommand(W, "protect shape remove " + regionName + " from " + player.getName());
+                            
+                            // Calculate refund (50% of original price)
+                            totalCoalReturn += CHUNK_COAL_PRICE * 0.5;
+                            totalStoneReturn += CHUNK_STONE_PRICE * 0.5;
+                            soldCount++;
+                        }
+                    } catch(e){}
+                }
+            }
+        }
+        
+        if(soldCount === 0){
+            player.message("§cYou don't own any of the selected chunks!");
+            return;
+        }
+        
+        // Save updated claims back to global storage
+        W.getStoreddata().put(GLOBAL_CLAIMS_KEY, JSON.stringify(claimedChunks));
+        
+        // Convert and give currency back to player
+        var totalInStone = (totalCoalReturn * 100) + totalStoneReturn;
+        var finalCoal = Math.floor(totalInStone / 100);
+        var finalStone = Math.floor(totalInStone % 100);
+        
+        if(finalCoal > 0){
+            var coalItem = player.world.createItem("coins:coal_coin", finalCoal);
+            player.giveItem(coalItem);
+        }
+        
+        if(finalStone > 0){
+            var stoneItem = player.world.createItem("coins:stone_coin", finalStone);
+            player.giveItem(stoneItem);
+        }
+        
+        player.message("§aSold " + soldCount + " chunk(s) for " + finalCoal + " coal and " + finalStone + " stone!");
+        
+        // Reset price display flag after selling
         showTotalPrice = false;
         priceCalculatedForChunkCount = 0;
+        
+        // Recreate GUI to remove sold chunks
+        renderChunkMapGui(player, api);
     }
     
     if(e.buttonId === ID_PRICE_BUTTON){
         // Calculate and show total price based on current selections
         showTotalPrice = true;
         priceCalculatedForChunkCount = selectedChunks.length;
+        renderChunkMapGui(player, api);
+    }
+    
+    if(e.buttonId === ID_APPEARANCE_BUTTON){
+        var gui = e.gui;
+        var appearanceField = gui.getComponent(ID_APPEARANCE_FIELD);
+        if(!appearanceField) return;
+        
+        var itemInput = appearanceField.getText().trim().toLowerCase();
+        if(!itemInput) {
+            player.message("§cPlease enter an item name (e.g., oak_log)");
+            return;
+        }
+        
+        // Check if item is in the allowed list
+        var isAllowed = false;
+        for(var i = 0; i < ALLOWED_ITEMS.length; i++){
+            if(ALLOWED_ITEMS[i] === itemInput){
+                isAllowed = true;
+                break;
+            }
+        }
+        
+        if(!isAllowed){
+            player.message("§cItem '" + itemInput + "' is not allowed! Use items like: oak_log, stone, etc.");
+            return;
+        }
+        
+        // Add minecraft: prefix
+        var itemName = "minecraft:" + itemInput;
+        
+        if(!lastBlock) return;
+        var W = lastBlock.getWorld();
+        
+        // Load current claimed chunks
+        var claimedChunks = {};
+        if(W.getStoreddata().has(GLOBAL_CLAIMS_KEY)){
+            try {
+                claimedChunks = JSON.parse(W.getStoreddata().get(GLOBAL_CLAIMS_KEY));
+            } catch(e) {
+                claimedChunks = {};
+            }
+        }
+        
+        // Update all chunks owned by this player
+        var updatedCount = 0;
+        for(var key in claimedChunks) {
+            if(claimedChunks.hasOwnProperty(key)) {
+                try {
+                    var item = player.world.createItemFromNbt(api.stringToNbt(claimedChunks[key]));
+                    var ownerName = item.getDisplayName();
+                    
+                    // Check if this chunk belongs to the player
+                    if(ownerName === "§6" + player.getName()) {
+                        // Create new item with player's name
+                        var newItem = W.createItem(itemName, 1);
+                        newItem.setCustomName("§6" + player.getName());
+                        claimedChunks[key] = newItem.getItemNbt().toJsonString();
+                        
+                        // Update storedSlotItems if this chunk is in the array
+                        var globalPos = parseInt(key.replace("chunk_", ""));
+                        if(globalPos >= 0 && globalPos < storedSlotItems.length) {
+                            storedSlotItems[globalPos] = claimedChunks[key];
+                        }
+                        
+                        updatedCount++;
+                    }
+                } catch(e) {}
+            }
+        }
+        
+        if(updatedCount === 0) {
+            player.message("§cYou don't own any chunks!");
+            return;
+        }
+        
+        // Save updated chunks
+        W.getStoreddata().put(GLOBAL_CLAIMS_KEY, JSON.stringify(claimedChunks));
+        
+        player.message("§aUpdated appearance for " + updatedCount + " chunk(s) to " + itemInput + "!");
+        
+        // Recreate GUI to show new appearance
         renderChunkMapGui(player, api);
     }
     
@@ -704,16 +1014,29 @@ function customGuiClosed(e){
     var W = player.getWorld();
     if(!lastBlock) return;
 
-    var keyPrefix = "chunkmap_" + lastBlock.getX() + "_" + lastBlock.getY() + "_" + lastBlock.getZ() + "_";
+    // Load current claimed chunks
+    var claimedChunks = {};
+    if(W.getStoreddata().has(GLOBAL_CLAIMS_KEY)){
+        try {
+            claimedChunks = JSON.parse(W.getStoreddata().get(GLOBAL_CLAIMS_KEY));
+        } catch(e) {
+            claimedChunks = {};
+        }
+    }
     
     // Save items for visible viewport slots
     for(var i = 0; i < mySlots.length; i++){
         var globalPos = viewportToGlobal(i);
         var st = mySlots[i].getStack();
+        var key = "chunk_" + globalPos;
+        
         if(!st || st.getName() === "minecraft:air"){
-            W.getStoreddata().remove(keyPrefix + globalPos);
+            delete claimedChunks[key];
         } else {
-            W.getStoreddata().put(keyPrefix + globalPos, st.getItemNbt().toJsonString());
+            claimedChunks[key] = st.getItemNbt().toJsonString();
         }
     }
+    
+    // Save back to global storage
+    W.getStoreddata().put(GLOBAL_CLAIMS_KEY, JSON.stringify(claimedChunks));
 }
