@@ -101,6 +101,7 @@ function interact(event) {
             try {
                 var reward = player.world.createItemFromNbt(api.stringToNbt(choice));
                 player.giveItem(reward);
+                player.message("§aYou received: §f" + reward.getDisplayName());
             } catch(e) {}
         }
 
