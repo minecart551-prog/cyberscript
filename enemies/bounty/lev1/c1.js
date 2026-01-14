@@ -20,11 +20,10 @@ var contractCoords = [
 { x: 1142, y: -42, z: -317 },
 { x: 1103, y: -26, z: -259 },
 { x: 1085, y: -26, z: -221 },
-{ x: 1062, y: -34, z: -180 },
+{ x: 1062, y: -31, z: -180 },
 { x: 1096, y: -26, z: -231 },
 { x: 1813, y: -42, z: -1100 },
 { x: 2540, y: -52, z: -647 }
-
 ];
 
 // Different enemy types you can spawn (tab + name)
@@ -53,7 +52,7 @@ function interact(event) {
 
         // choose how many targets to spawn (example: 2–4)
         var numTargets = 1; // change to 2 + Math.floor(Math.random() * 3) if you want variety
-
+        
         // spawn targets
         for (var i = 0; i < numTargets; i++) {
             var type = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
