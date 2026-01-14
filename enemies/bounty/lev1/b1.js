@@ -1,7 +1,7 @@
 
 var skinAvail = 34;
 var rewardItem = "minecraft:echo_shard";  
-var rewardCount = 10;                 
+var rewardCount = 20;                 
 
 function init(e){
     var npc = e.npc;
