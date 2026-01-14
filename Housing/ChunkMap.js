@@ -1,5 +1,5 @@
-var CHUNK_BUY_PRIM_PRICE = 1;
-var CHUNK_BUY_SEC_PRICE = 0;
+var CHUNK_BUY_PRIM_PRICE = 0;
+var CHUNK_BUY_SEC_PRICE = 30;
 var CHUNK_SELL_PERCENTAGE = 1;
 
 var CURRENCY_PRIMARY_ITEM = "coins:emerald_coin";
@@ -556,11 +556,12 @@ function claimSelectedChunks(player, api) {
     var playerName = player.getName();
     
     api.executeCommand(W, "protect add " + playerName);
-    api.executeCommand(W, "protect set rule " + playerName + " break allow");
-    api.executeCommand(W, "protect set rule " + playerName + " place allow");
-    api.executeCommand(W, "protect set rule " + playerName + " pvp allow");
-    api.executeCommand(W, "protect set rule " + playerName + " interact allow");
     api.executeCommand(W, "protect inclusion add " + playerName + " player " + playerName);
+    api.executeCommand(W, "protect set rule " + playerName + " place allow");
+    api.executeCommand(W, "protect set rule " + playerName + " break allow");
+    //api.executeCommand(W, "protect set rule " + playerName + " pvp allow");
+    //api.executeCommand(W, "protect set rule " + playerName + " interact allow");
+    
     
     for(var i = 0; i < selectedChunks.length; i++){
         var chunk = selectedChunks[i];
@@ -728,7 +729,7 @@ function customGuiButton(e){
             player.giveItem(stoneItem);
         }
         
-        player.message("§aSold " + soldCount + " chunk(s) for " + finalCoal + " coal and " + finalStone + " stone!");
+        player.message("§aSold " + soldCount + " chunk(s) for " + finalCoal + " emerald coins and " + finalStone + " coal coins!");
         
         showTotalPrice = false;
         priceCalculatedForChunkCount = 0;
