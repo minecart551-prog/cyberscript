@@ -1,3 +1,6 @@
+// Shop NPC Script with Tabs
+// Place this in the NPC's Interact, customGuiButton, customGuiSlotClicked, and customGuiClosed events
+
 var guiRef;                 
 var mySlots = [];           
 var highlightLineIds = [];  
@@ -5,9 +8,21 @@ var highlightedSlot = null;
 var lastNpc = null;         
 var storedSlotItems = {};   // per-page storage
 var currentPage = 0;        // track current page
-var maxPages = 6;           // max pages admin can create
+var maxPages = 5;           // max pages (5 tabs)
+var wasAdminMode = false;   // Track if GUI was opened in admin mode
 
-// ---- helper: create an array of length n filled with null (since .fill isn't available) ----
+// Currency conversion rates
+var STONE_TO_COAL = 100;    // 100 stone coins = 1 coal coin
+var COAL_TO_EMERALD = 100;  // 100 coal coins = 1 emerald coin
+
+// Price field component IDs
+var ID_PRICE_FIELD = 100;
+var ID_SET_PRICE_BUTTON = 101;
+
+// Tab button IDs (102-106 for 5 tabs)
+var ID_TAB_BASE = 102;
+
+// Helper: create an array of length n filled with null
 function makeNullArray(n){
     var a = new Array(n);
     for (var i = 0; i < n; i++){ a[i] = null; }
@@ -16,24 +31,18 @@ function makeNullArray(n){
 
 // ========== Layout ==========
 var slotPositions = [];
-var startX = -105;          
-var startY = -120;          
-var rowSpacing = 20.5;      
-var colSpacing = 79;        
-var numRows = 10;           
-var numCols = 5;            
+var startX = 3;          
+var startY = -50;         // Moved up 40 pixels (18 - 40 = -22)
+var rowSpacing = 18;      
+var colSpacing = 18;        
+var numRows = 5;          // Changed to 5 rows
+var numCols = 9;          // 9 columns
 
-var price1OffsetX = 0;
-var price2OffsetX = 18;
-var boughtOffsetX = 44;
-
-for (var col = 0; col < numCols; col++) {
-    var colOffsetX = startX + col * colSpacing;
-    for (var row = 0; row < numRows; row++) {
-        var y = startY + row * rowSpacing;
-        slotPositions.push({x: colOffsetX + price1OffsetX, y: y});  
-        slotPositions.push({x: colOffsetX + price2OffsetX, y: y});  
-        slotPositions.push({x: colOffsetX + boughtOffsetX, y: y});  
+for (var row = 0; row < numRows; row++) {
+    var y = startY + row * rowSpacing;
+    for (var col = 0; col < numCols; col++) {
+        var x = startX + col * colSpacing;
+        slotPositions.push({x: x, y: y});
     }
 }
 
@@ -45,10 +54,12 @@ function interact(event) {
     lastNpc = event.npc; 
     var npcData = lastNpc.getStoreddata();
 
-    storedSlotItems = npcData.has("SlotItems") 
-        ? JSON.parse(npcData.get("SlotItems")) 
+    // Load shop items
+    storedSlotItems = npcData.has("ShopItems") 
+        ? JSON.parse(npcData.get("ShopItems")) 
         : {};
 
+    // Initialize current page if it doesn't exist
     if(!storedSlotItems[currentPage]){
         storedSlotItems[currentPage] = makeNullArray(slotPositions.length);
     }
@@ -56,80 +67,180 @@ function interact(event) {
     highlightedSlot = null;
     highlightLineIds = [];
 
-    if(!guiRef){
-        guiRef = api.createCustomGui(176, 166, 0, true, player);
+    var adminMode = (player.getMainhandItem() && player.getMainhandItem().getName() === "minecraft:bedrock");
+    wasAdminMode = adminMode;
 
-        guiRef.addButton(2,"Next",  284, -30, 35, 19);
-        guiRef.addButton(3,"Back",  -153, -30,  35, 19);
+    // Always create fresh GUI
+    guiRef = api.createCustomGui(176, 166, 0, true, player);
 
-        var adminMode = (player.getMainhandItem().name === "minecraft:bedrock");
-        if(adminMode){
-            guiRef.addButton(4,"Create", 284, -60, 35, 19);
+    // Add tab buttons at the top
+    var tabWidth = 25;
+	var tabHeight = 28;
+    var tabSpacing = 2;
+    var tabStartX = 0;
+    var tabY = -80;  // High enough above the slots
+    
+    for(var i = 0; i < maxPages; i++){
+        var tabX = tabStartX + i * (tabWidth + tabSpacing);
+        var tabLabel = "Tab " + (i + 1);
+        var buttonId = ID_TAB_BASE + i;
+        
+        // Highlight current tab
+        if(i === currentPage){
+            guiRef.addButton(buttonId, "§e" + tabLabel, tabX, tabY, tabWidth, tabHeight);
+        } else {
+            guiRef.addButton(buttonId, "§7" + tabLabel, tabX, tabY, tabWidth, tabHeight);
         }
-
-        mySlots = slotPositions.map(function(pos) {
-            return guiRef.addItemSlot(pos.x, pos.y);
-        });
-
-        guiRef.showPlayerInventory(0, 91, false); 
-        player.showCustomGui(guiRef);
     }
 
+    // Create item slots
+    mySlots = slotPositions.map(function(pos) {
+        return guiRef.addItemSlot(pos.x, pos.y);
+    });
+
+    if(adminMode){
+        // Admin mode - show price setting UI
+        guiRef.addLabel(1, "§6Admin Shop Editor", 2, 45, 1.0, 1.0);
+
+        guiRef.addLabel(3, "§7Price:", 2, 64, 0.8, 0.8);
+        guiRef.addTextField(ID_PRICE_FIELD, 37, 60, 60, 18).setText("");
+        guiRef.addButton(ID_SET_PRICE_BUTTON, "Set Price", 100, 60, 60, 18);
+        
+        // Show player inventory for admin
+        guiRef.showPlayerInventory(3, 91, false);
+    } else {
+    }
+
+    // Load items into slots for current page
     for(var i=0; i<mySlots.length; i++){
         mySlots[i].setStack(null);
         if(storedSlotItems[currentPage][i]) {
             try {
                 var item = player.world.createItemFromNbt(api.stringToNbt(storedSlotItems[currentPage][i]));
+                
+                // Get price from lore if it exists
+                var price = null;
+                var lore = item.getLore();
+                for(var j = 0; j < lore.length; j++){
+                    var line = lore[j];
+                    if(line.indexOf("Price:") !== -1 && line.indexOf("¢") !== -1){
+                        var priceStr = line.replace(/§./g, "");
+                        var match = priceStr.match(/Price:\s*(\d+)¢/);
+                        if(match && match[1]){
+                            price = parseInt(match[1]);
+                            break;
+                        }
+                    }
+                }
+                
+                // Add price to lore display (for both admin and customer)
+                if(price !== null && price !== undefined){
+                    var existingLore = item.getLore();
+                    var loreArray = [];
+                    
+                    for(var j = 0; j < existingLore.length; j++){
+                        var line = existingLore[j];
+                        if(line.indexOf("Price:") === -1 && line.indexOf("Click to purchase") === -1){
+                            loreArray.push(line);
+                        }
+                    }
+                    
+                    while(loreArray.length > 0 && loreArray[loreArray.length - 1] === ""){
+                        loreArray.pop();
+                    }
+                    
+                    loreArray.push("");
+                    loreArray.push("§aPrice: §e" + price + "¢");
+                    
+                    if(!adminMode){
+                        loreArray.push("§7Click to purchase");
+                    }
+                    
+                    item.setLore(loreArray);
+                }
+                
                 mySlots[i].setStack(item);
-            } catch(e) {}
+            } catch(e) {
+                player.message("§cError loading item " + i + ": " + e);
+            }
         }
     }
-
-    guiRef.update();
+    
+    player.showCustomGui(guiRef);
 }
 
 // ========== Button Click ==========
 function customGuiButton(event){
     var player = event.player;
-    var adminMode = (player.getMainhandItem().name === "minecraft:bedrock");
-    var npcData = lastNpc.getStoreddata();
-
-    var totalPages = Object.keys(storedSlotItems).length;
-
-    if(event.buttonId == 2){ // Next
-        savePageItems();
-        if(currentPage+1 < totalPages){ 
-            currentPage++;
-            interact({player: player, API: event.API, npc: lastNpc});
-            player.message("§eSwitched to page " + (currentPage+1));
-        } else {
-            player.message("§cNo more pages available!");
-        }
-    }
-
-    if(event.buttonId == 3){ // Previous
-        if(currentPage > 0){
+    var api = event.API;
+    var adminMode = (player.getMainhandItem() && player.getMainhandItem().getName() === "minecraft:bedrock");
+    
+    // Handle tab buttons
+    if(event.buttonId >= ID_TAB_BASE && event.buttonId < ID_TAB_BASE + maxPages){
+        var newPage = event.buttonId - ID_TAB_BASE;
+        if(newPage !== currentPage){
             savePageItems();
-            currentPage--;
-            interact({player: player, API: event.API, npc: lastNpc});
-            player.message("§eSwitched to page " + (currentPage+1));
-        } else {
-            player.message("§cAlready on first page!");
-        }
-    }
-
-    if(event.buttonId == 4 && adminMode){ // Create Page
-        if(totalPages < maxPages){
-            savePageItems();
-            var newPage = totalPages;
-            storedSlotItems[newPage] = makeNullArray(slotPositions.length);
             currentPage = newPage;
-            interact({player: player, API: event.API, npc: lastNpc});
-            player.message("§aCreated page " + (currentPage+1));
-        } else {
-            player.message("§cMaximum of " + maxPages + " pages reached!");
+            interact({player: player, API: api, npc: lastNpc});
+        }
+        return;
+    }
+    
+    // Handle Set Price button
+    if(event.buttonId !== ID_SET_PRICE_BUTTON) return;
+    
+    if(!adminMode) return;
+    if(!highlightedSlot) {
+        player.message("§cPlease select a slot first!");
+        return;
+    }
+    
+    var priceField = event.gui.getComponent(ID_PRICE_FIELD);
+    if(!priceField) return;
+    
+    var priceText = priceField.getText().trim();
+    if(!priceText) {
+        player.message("§cPlease enter a price!");
+        return;
+    }
+    
+    var price = parseFloat(priceText);
+    if(isNaN(price) || price < 0) {
+        player.message("§cInvalid price! Use a number.");
+        return;
+    }
+    
+    var item = highlightedSlot.getStack();
+    if(!item || item.isEmpty()) {
+        player.message("§cNo item in selected slot!");
+        return;
+    }
+    
+    var priceValue = Math.floor(price);
+    
+    var existingLore = item.getLore();
+    var loreArray = [];
+    
+    for(var j = 0; j < existingLore.length; j++){
+        var line = existingLore[j];
+        if(line.indexOf("Price:") === -1 && line.indexOf("Click to purchase") === -1){
+            loreArray.push(line);
         }
     }
+    
+    while(loreArray.length > 0 && loreArray[loreArray.length - 1] === ""){
+        loreArray.pop();
+    }
+    
+    loreArray.push("");
+    loreArray.push("§aPrice: §e" + priceValue + "¢");
+    
+    item.setLore(loreArray);
+    highlightedSlot.setStack(item);
+    
+    player.message("§aSet price §e" + priceValue + "¢ §afor item!");
+    
+    savePageItems();
 }
 
 // ========== Slot Click ==========
@@ -137,25 +248,28 @@ function customGuiSlotClicked(event) {
     var clickedSlot = event.slot;
     var stack = event.stack;
     var player = event.player;
-    var adminMode = (player.getMainhandItem().name === "minecraft:bedrock");
+    var api = event.API;
+    var gui = event.gui; // Use GUI from event
+    var adminMode = (player.getMainhandItem() && player.getMainhandItem().getName() === "minecraft:bedrock");
 
     var slotIndex = mySlots.indexOf(clickedSlot);
 
     if(adminMode) {
         if(slotIndex !== -1) {
             highlightedSlot = clickedSlot;
-            for(var i=0;i<highlightLineIds.length;i++){
-                try { guiRef.removeComponent(highlightLineIds[i]); } catch(e) {}
+            
+            for(var i=0; i<highlightLineIds.length; i++){
+                try { gui.removeComponent(highlightLineIds[i]); } catch(e) {}
             }
             highlightLineIds = [];
 
             var pos = slotPositions[slotIndex];
             var x = pos.x, y = pos.y, w = 18, h = 18;
-            highlightLineIds.push(guiRef.addColoredLine(1, x, y, x+w, y, 0xADD8E6, 2));
-            highlightLineIds.push(guiRef.addColoredLine(2, x, y+h, x+w, y+h, 0xADD8E6, 2));
-            highlightLineIds.push(guiRef.addColoredLine(3, x, y, x, y+h, 0xADD8E6, 2));
-            highlightLineIds.push(guiRef.addColoredLine(4, x+w, y, x+w, y+h, 0xADD8E6, 2));
-            guiRef.update();
+            highlightLineIds.push(gui.addColoredLine(1, x, y, x+w, y, 0xADD8E6, 2));
+            highlightLineIds.push(gui.addColoredLine(2, x, y+h, x+w, y+h, 0xADD8E6, 2));
+            highlightLineIds.push(gui.addColoredLine(3, x, y, x, y+h, 0xADD8E6, 2));
+            highlightLineIds.push(gui.addColoredLine(4, x+w, y, x+w, y+h, 0xADD8E6, 2));
+            gui.update();
             return;
         }
 
@@ -171,109 +285,97 @@ function customGuiSlotClicked(event) {
                     if(total <= maxStack) {
                         slotStack.setStackSize(total);
                         highlightedSlot.setStack(slotStack);
-                        // CHANGED: Don't remove item from player
                     } else {
                         var overflow = total - maxStack;
                         slotStack.setStackSize(maxStack);
                         highlightedSlot.setStack(slotStack);
-                        // CHANGED: Don't remove or give back items
                     }
                 } else {
                     var itemCopy = player.world.createItemFromNbt(stack.getItemNbt());
                     if(slotStack && !slotStack.isEmpty()) player.giveItem(slotStack);
                     highlightedSlot.setStack(itemCopy);
-                    // CHANGED: Don't remove item from player
                 }
             } else if(slotStack && !slotStack.isEmpty()) {
                 player.giveItem(slotStack);
                 highlightedSlot.setStack(player.world.createItem("minecraft:air", 1));
-                guiRef.update();
+                gui.update();
             }
 
-            guiRef.update();
+            gui.update();
         } catch(e) {}
+        
     } else {
-        if(slotIndex % 3 !== 2) return; 
-
-        var rowStart = slotIndex - 2; 
-        var priceSlots = [mySlots[rowStart], mySlots[rowStart+1]];
-        var boughtItem = mySlots[slotIndex].getStack();
-        if(!boughtItem || boughtItem.isEmpty()) return;
-
-        // --- Fix: Require combined cost properly ---
-        var inv = player.getInventory().getItems();
-        var price1 = priceSlots[0].getStack();
-        var price2 = priceSlots[1].getStack();
-
-        if(price1 && !price1.isEmpty() && price2 && !price2.isEmpty() && price1.getName() === price2.getName()){
-            // Same item type: sum required
-            var required = price1.getStackSize() + price2.getStackSize();
-            var totalHave = 0;
-            for(var j=0;j<inv.length;j++){
-                var s = inv[j];
-                if(s && s.getName() === price1.getName()){
-                    totalHave += s.getStackSize();
-                }
-            }
-            if(totalHave < required){
-                player.message("§cNot enough currency!");
-                return;
-            }
-            // remove items
-            var toRemove = required;
-            for(var j=0;j<inv.length;j++){
-                var s = inv[j];
-                if(s && s.getName() === price1.getName() && toRemove > 0){
-                    var amt = Math.min(toRemove, s.getStackSize());
-                    s.setStackSize(s.getStackSize()-amt);
-                    toRemove -= amt;
-                }
-            }
-        } else {
-            // Different items: check separately
-            for(var i=0;i<priceSlots.length;i++){
-                var p = priceSlots[i].getStack();
-                if(p && !p.isEmpty()){
-                    var totalHave2 = 0;
-                    for(var j=0;j<inv.length;j++){
-                        var s2 = inv[j];
-                        if(s2 && s2.getName() === p.getName()){
-                            totalHave2 += s2.getStackSize();
-                        }
-                    }
-                    if(totalHave2 < p.getStackSize()){
-                        player.message("§cNot enough currency!");
-                        return;
-                    }
-                }
-            }
-            // remove separately
-            for(var i=0;i<priceSlots.length;i++){
-                var p = priceSlots[i].getStack();
-                if(p && !p.isEmpty()){
-                    var toRemove2 = p.getStackSize();
-                    for(var j=0;j<inv.length;j++){
-                        var s3 = inv[j];
-                        if(s3 && s3.getName() === p.getName() && toRemove2 > 0){
-                            var amt2 = Math.min(toRemove2, s3.getStackSize());
-                            s3.setStackSize(s3.getStackSize()-amt2);
-                            toRemove2 -= amt2;
-                        }
-                    }
+        // Customer mode - purchase item
+        if(slotIndex === -1) return;
+        
+        var item = mySlots[slotIndex].getStack();
+        if(!item || item.isEmpty()) return;
+        
+        // Get price from lore display
+        var price = null;
+        var lore = item.getLore();
+        for(var i = 0; i < lore.length; i++){
+            var line = lore[i];
+            if(line.indexOf("Price:") !== -1 && line.indexOf("¢") !== -1){
+                var priceStr = line.replace(/§./g, "");
+                var match = priceStr.match(/Price:\s*(\d+)¢/);
+                if(match && match[1]){
+                    price = parseInt(match[1]);
+                    break;
                 }
             }
         }
-
-        // Give reward
-        var giveCopy = player.world.createItemFromNbt(boughtItem.getItemNbt());
-        player.giveItem(giveCopy);
-        player.message("§aPurchase successful!");
+        
+        if(price === null || price === undefined) {
+            player.message("§cThis item has no price set!");
+            return;
+        }
+        
+        var playerCoins = countPlayerCoins(player);
+        
+        if(playerCoins < price) {
+            player.message("§cNot enough coins! Need: §e" + price + "¢ §c, Have: §e" + playerCoins + "¢");
+            return;
+        }
+        
+        removeCoins(player, price);
+        
+        try {
+            if(storedSlotItems[currentPage][slotIndex]) {
+                var purchaseItem = player.world.createItemFromNbt(api.stringToNbt(storedSlotItems[currentPage][slotIndex]));
+                
+                var purchaseLore = purchaseItem.getLore();
+                var cleanLore = [];
+                for(var i = 0; i < purchaseLore.length; i++){
+                    var line = purchaseLore[i];
+                    if(line.indexOf("Price:") === -1 && line.indexOf("Click to purchase") === -1){
+                        cleanLore.push(line);
+                    }
+                }
+                while(cleanLore.length > 0 && cleanLore[cleanLore.length - 1] === ""){
+                    cleanLore.pop();
+                }
+                purchaseItem.setLore(cleanLore);
+                
+                player.giveItem(purchaseItem);
+                player.message("§aPurchased item for §e" + price + "¢!");
+            }
+        } catch(e) {
+            player.message("§cError purchasing item: " + e);
+        }
     }
 }
 
 // ========== Save GUI ==========
 function customGuiClosed(event) {
-    savePageItems();
+    if(!lastNpc) return;
+    var npcData = lastNpc.getStoreddata();
+
+    if(wasAdminMode) {
+        savePageItems();
+    }
+
+    // Only set guiRef to null (actual close, not tab switch)
     guiRef = null;
 }
 
@@ -286,5 +388,103 @@ function savePageItems(){
         return stack && !stack.isEmpty() ? stack.getItemNbt().toJsonString() : null;
     });
 
-    npcData.put("SlotItems", JSON.stringify(storedSlotItems));
+    npcData.put("ShopItems", JSON.stringify(storedSlotItems));
+}
+
+// ========== Helper Functions ==========
+function countPlayerCoins(player) {
+    var stoneTotal = 0;
+    var coalTotal = 0;
+    var emeraldTotal = 0;
+    var inv = player.getInventory();
+    
+    for(var i = 0; i < inv.getSize(); i++) {
+        var stack = inv.getSlot(i);
+        if(stack && !stack.isEmpty()) {
+            var name = stack.getName();
+            if(name === "coins:stone_coin") {
+                stoneTotal += stack.getStackSize();
+            } else if(name === "coins:coal_coin") {
+                coalTotal += stack.getStackSize();
+            } else if(name === "coins:emerald_coin") {
+                emeraldTotal += stack.getStackSize();
+            }
+        }
+    }
+    
+    return stoneTotal + (coalTotal * STONE_TO_COAL) + (emeraldTotal * STONE_TO_COAL * COAL_TO_EMERALD);
+}
+
+function removeCoins(player, amount) {
+    var remaining = amount;
+    var inv = player.getInventory();
+    
+    for(var i = 0; i < inv.getSize() && remaining > 0; i++) {
+        var stack = inv.getSlot(i);
+        if(stack && !stack.isEmpty() && stack.getName() === "coins:stone_coin") {
+            var stackAmount = stack.getStackSize();
+            if(stackAmount <= remaining) {
+                inv.setSlot(i, null);
+                remaining -= stackAmount;
+            } else {
+                stack.setStackSize(stackAmount - remaining);
+                remaining = 0;
+            }
+        }
+    }
+    
+    for(var i = 0; i < inv.getSize() && remaining > 0; i++) {
+        var stack = inv.getSlot(i);
+        if(stack && !stack.isEmpty() && stack.getName() === "coins:coal_coin") {
+            var stackAmount = stack.getStackSize();
+            var stoneValue = stackAmount * STONE_TO_COAL;
+            
+            if(stoneValue <= remaining) {
+                inv.setSlot(i, null);
+                remaining -= stoneValue;
+            } else {
+                var coalsNeeded = Math.ceil(remaining / STONE_TO_COAL);
+                stack.setStackSize(stackAmount - coalsNeeded);
+                var overpaid = (coalsNeeded * STONE_TO_COAL) - remaining;
+                remaining = 0;
+                
+                if(overpaid > 0){
+                    var changeItem = player.world.createItem("coins:stone_coin", overpaid);
+                    player.giveItem(changeItem);
+                }
+            }
+        }
+    }
+    
+    for(var i = 0; i < inv.getSize() && remaining > 0; i++) {
+        var stack = inv.getSlot(i);
+        if(stack && !stack.isEmpty() && stack.getName() === "coins:emerald_coin") {
+            var stackAmount = stack.getStackSize();
+            var stoneValue = stackAmount * STONE_TO_COAL * COAL_TO_EMERALD;
+            
+            if(stoneValue <= remaining) {
+                inv.setSlot(i, null);
+                remaining -= stoneValue;
+            } else {
+                var emeraldsNeeded = Math.ceil(remaining / (STONE_TO_COAL * COAL_TO_EMERALD));
+                stack.setStackSize(stackAmount - emeraldsNeeded);
+                var overpaid = (emeraldsNeeded * STONE_TO_COAL * COAL_TO_EMERALD) - remaining;
+                remaining = 0;
+                
+                if(overpaid > 0){
+                    var changeCoal = Math.floor(overpaid / STONE_TO_COAL);
+                    var changeStone = overpaid % STONE_TO_COAL;
+                    
+                    if(changeCoal > 0){
+                        var coalItem = player.world.createItem("coins:coal_coin", changeCoal);
+                        player.giveItem(coalItem);
+                    }
+                    if(changeStone > 0){
+                        var stoneItem = player.world.createItem("coins:stone_coin", changeStone);
+                        player.giveItem(stoneItem);
+                    }
+                }
+            }
+        }
+    }
 }
