@@ -106,7 +106,7 @@ function died(event) {
             for (var i = 0; i < players.length; i++) {
                 if (players[i].getName() === ownerName) {
                     var owner = players[i];
-                    owner.message("§c⚠ Someone else killed one of your targets! It doesn't count.");
+                    owner.message("§c⚠ Someone else killed one of your targets!");
                     break;
                 }
             }
