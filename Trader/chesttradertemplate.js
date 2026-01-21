@@ -9,7 +9,6 @@ var lastNpc = null;
 var storedSlotItems = {};   // per-page storage
 var currentPage = 0;        // track current page
 var maxPages = 5;           // max pages (5 tabs)
-var wasAdminMode = false;   // Track if GUI was opened in admin mode
 
 // Currency conversion rates
 var STONE_TO_COAL = 100;    // 100 stone coins = 1 coal coin
@@ -74,7 +73,6 @@ function interact(event) {
     highlightLineIds = [];
 
     var adminMode = (player.getMainhandItem() && player.getMainhandItem().getName() === "minecraft:bedrock");
-    wasAdminMode = adminMode;
 
     // Only create GUI if it doesn't exist yet
     if(!guiRef){
@@ -124,15 +122,6 @@ function interact(event) {
         } else {
             // Default: show air for empty tabs
             tabSlots[i].setStack(null);
-        }
-    }
-
-    // Update tab button colors (highlight current tab)
-    for(var i = 0; i < maxPages; i++){
-        var button = guiRef.getComponent(ID_TAB_BASE + i);
-        if(button){
-            // Keep buttons empty/transparent
-            button.setLabel("");
         }
     }
 
