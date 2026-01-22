@@ -1,15 +1,14 @@
-// === Tour Guide NPC Script with Waypoints + Movement Lock ===
+// === Tour Guide NPC Script - Shared Group Tour ===
 
-// Track progress per player UUID
-var tourProgress = {};
-// Keep track of path progress per player
-var pathProgress = {};
-// Track if NPC is ready for next step per player
-var readyForNext = {};
+// Global tour state - shared by all players
+var currentTourStep = 0;
+var isMoving = false;
+var pathProgress = 0;
+var playersOnTour = {}; // Track which players are on the tour
 
 var tourStops = [
     { msg: "Are you ready for a tour?" }, 
-    { msg: "Start with catching about 7 fishes. You'll need it to trade for some money." },
+    { msg: "Start with catching about 5 fishes. You'll need it to trade for some money." },
     { msg: "Ready for next location?" },
     { msg: "Let's now go to the second level.", path: [[2338, -48, 848],
      [2367, -41, 848], 
@@ -25,7 +24,7 @@ var tourStops = [
     { msg: "Ready for next location?" },
     { msg: "In here is a drones shop, you can hire them to assist you with hunting replicants", coords: [2432, 42, 833] },
     { msg: "Over here is a money exchange", path: [[2421, 42, 834],[2428, 42, 815]] },
-    { msg: "You can claim your apartment key here with the disc in your inventory, if there are no keys available, let the dev know and they will give you one in your inventory", coords: [2427, 42, 806] },
+    { msg: "You can buy your beginner apartments here, you should be able to afford one after doing some gigs", coords: [2427, 42, 806] },
     { msg: "Over here is a cars shop", coords: [2427, 42, 806] },
     { msg: "You can also buy seeds and grow crops to make profits, Sobiezója also sell decorational items", path: [[2419, 42, 809],[2390, 42, 760]] },
     { msg: "Ready for next location?" },
@@ -33,7 +32,7 @@ var tourStops = [
     { msg: "You can check the guides here", coords: [2497, 42,846] },
     { msg: "The Neonites are the first level enemy you will deal with, after that are the drones you see around here, the same enemy type will defend each other so watch out for nearby enemies", coords: [2546, 42, 831] },
     { msg: "Over here we have a furniture store", coords: [2566, 42, 886] },
-    { msg: "Now we will check out the beginner apartments, find your room number assigned on your key. You can place and break blocks in your apartment. There are 5 pots you can use to grow plants", path: [[2549, 42, 887],[2598, 42, 980]] },
+    { msg: "Now we will check out the beginner apartments, your room number will be assigned on your key. You can place and break blocks in your apartment and grow your plants as well", path: [[2549, 42, 887],[2598, 42, 980]] },
     { msg: "Let's go downstair and check out the boatdock", coords: [2589, 37, 971] },
     { msg: " ", coords: [2589, -51, 971],teleport:true },
     { msg: "follow me this way", path: [[2603, -46, 976],[2603, -46, 1109],[2680, -52, 1125],[2750, -47, 1069],[2760, -52, 1066]] },
@@ -53,22 +52,20 @@ function interact(e) {
     var player = e.player;
     var uuid = player.getUUID();
 
-    if (!tourProgress[uuid]) {
-        tourProgress[uuid] = 0;
-        pathProgress[uuid] = 0;
-        readyForNext[uuid] = true;
+    // Add player to tour if not already on it
+    if (!playersOnTour[uuid]) {
+        playersOnTour[uuid] = true;
     }
 
     // Block interaction if NPC is still moving
-    if (!readyForNext[uuid]) {
+    if (isMoving) {
         player.message("§c[Tour Guide] Please wait, I'm still moving to the next location!");
         return;
     }
 
-    var step = tourProgress[uuid];
-
-    if (step < tourStops.length) {
-        var stop = tourStops[step];
+    // Progress to next step
+    if (currentTourStep < tourStops.length) {
+        var stop = tourStops[currentTourStep];
         npc.say(stop.msg);
 
         if (stop.coords || stop.path) {
@@ -76,79 +73,85 @@ function interact(e) {
                 // Teleport instantly
                 var target = stop.coords ? stop.coords : stop.path[stop.path.length - 1];
                 npc.setPosition(target[0], target[1], target[2]);
-                readyForNext[uuid] = true; // instant → ready immediately
-                if (step === tourStops.length - 1) {
+                isMoving = false; // Teleport is instant
+                
+                if (currentTourStep === tourStops.length - 1) {
                     npc.getWorld().spawnClone(2325, -48, 855, 3, "Tour Guide");
                     npc.despawn();
+                    // Reset for next tour
+                    currentTourStep = 0;
+                    playersOnTour = {};
+                    return;
                 }
             } else if (stop.coords) {
                 // Walk to location
                 npc.navigateTo(stop.coords[0], stop.coords[1], stop.coords[2], 7);
-                readyForNext[uuid] = false;
+                isMoving = true;
             } else if (stop.path) {
                 // Start path
-                pathProgress[uuid] = 0;
-                var wp = stop.path[pathProgress[uuid]];
+                pathProgress = 0;
+                var wp = stop.path[pathProgress];
                 npc.navigateTo(wp[0], wp[1], wp[2], 7);
-                readyForNext[uuid] = false;
+                isMoving = true;
             }
         }
 
-        tourProgress[uuid] = step + 1;
+        currentTourStep++;
     }
 }
 
 function tick(e) {
     var npc = e.npc;
 
-    for (var uuid in tourProgress) {
-        var step = tourProgress[uuid] - 1; // current stop
-        var stop = tourStops[step];
-        if (!stop) continue;
+    if (!isMoving) return;
 
-        // Handle waypoint paths
-        if (stop.path) {
-            var currentWpIndex = pathProgress[uuid];
-            if (currentWpIndex >= stop.path.length) {
-                // Finished all waypoints
-                readyForNext[uuid] = true;
-                continue;
-            }
+    var step = currentTourStep - 1; // Current stop (we already incremented)
+    if (step < 0 || step >= tourStops.length) return;
+    
+    var stop = tourStops[step];
+    if (!stop) return;
 
-            var wp = stop.path[currentWpIndex];
-            var dx = npc.getX() - wp[0];
-            var dy = npc.getY() - wp[1];
-            var dz = npc.getZ() - wp[2];
-            var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-            if (dist < 2) { 
-                // Reached waypoint
-                pathProgress[uuid]++;
-                if (pathProgress[uuid] < stop.path.length) {
-                    var nextWp = stop.path[pathProgress[uuid]];
-                    npc.navigateTo(nextWp[0], nextWp[1], nextWp[2], 7);
-                } else {
-                    // All waypoints reached
-                    readyForNext[uuid] = true;
-                }
-            } else if (!npc.isNavigating()) {
-                // Retry if stuck
-                npc.navigateTo(wp[0], wp[1], wp[2], 7);
-            }
+    // Handle waypoint paths
+    if (stop.path) {
+        if (pathProgress >= stop.path.length) {
+            // Finished all waypoints
+            isMoving = false;
+            return;
         }
 
-        // Handle single coordinate stops
-        if (stop.coords && !stop.path && !stop.teleport) {
-            var dx2 = npc.getX() - stop.coords[0];
-            var dy2 = npc.getY() - stop.coords[1];
-            var dz2 = npc.getZ() - stop.coords[2];
-            var dist2 = Math.sqrt(dx2 * dx2 + dy2 * dy2 + dz2 * dz2);
+        var wp = stop.path[pathProgress];
+        var dx = npc.getX() - wp[0];
+        var dy = npc.getY() - wp[1];
+        var dz = npc.getZ() - wp[2];
+        var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-            if (dist2 < 2) {
-                readyForNext[uuid] = true;
-            } else if (!npc.isNavigating()) {
-                npc.navigateTo(stop.coords[0], stop.coords[1], stop.coords[2], 7);
+        if (dist < 2) { 
+            // Reached waypoint
+            pathProgress++;
+            if (pathProgress < stop.path.length) {
+                var nextWp = stop.path[pathProgress];
+                npc.navigateTo(nextWp[0], nextWp[1], nextWp[2], 7);
+            } else {
+                // All waypoints reached
+                isMoving = false;
             }
+        } else if (!npc.isNavigating()) {
+            // Retry if stuck
+            npc.navigateTo(wp[0], wp[1], wp[2], 7);
+        }
+    }
+
+    // Handle single coordinate stops
+    if (stop.coords && !stop.path && !stop.teleport) {
+        var dx2 = npc.getX() - stop.coords[0];
+        var dy2 = npc.getY() - stop.coords[1];
+        var dz2 = npc.getZ() - stop.coords[2];
+        var dist2 = Math.sqrt(dx2 * dx2 + dy2 * dy2 + dz2 * dz2);
+
+        if (dist2 < 2) {
+            isMoving = false;
+        } else if (!npc.isNavigating()) {
+            npc.navigateTo(stop.coords[0], stop.coords[1], stop.coords[2], 7);
         }
     }
 }
