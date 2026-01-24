@@ -688,7 +688,16 @@ function customGuiSlotClicked(event) {
             var slotStack = highlightedSlot.getStack();
             var maxStack = stack ? stack.getMaxStackSize() : 64;
 
-            if(stack && !stack.isEmpty()) {
+            // Check if clicked slot is empty (no stack or empty stack)
+            if(!stack || stack.isEmpty()) {
+                // Empty slot clicked - clear the highlighted slot
+                if(slotStack && !slotStack.isEmpty()) {
+                    highlightedSlot.setStack(player.world.createItem("minecraft:air", 1));
+                    player.message("§eCleared highlighted slot");
+                    if(guiRef) guiRef.update();
+                }
+            } else {
+                // Slot has an item - proceed with normal item transfer logic
                 if(slotStack && !slotStack.isEmpty() && slotStack.getDisplayName() === stack.getDisplayName()) {
                     var total = slotStack.getStackSize() + stack.getStackSize();
                     if(total <= maxStack) {
@@ -703,10 +712,6 @@ function customGuiSlotClicked(event) {
                     if(slotStack && !slotStack.isEmpty()) player.giveItem(slotStack);
                     highlightedSlot.setStack(itemCopy);
                 }
-            } else if(slotStack && !slotStack.isEmpty()) {
-                player.giveItem(slotStack);
-                highlightedSlot.setStack(player.world.createItem("minecraft:air", 1));
-                if(guiRef) guiRef.update();
             }
 
             if(guiRef) guiRef.update();
