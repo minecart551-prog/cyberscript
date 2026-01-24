@@ -440,7 +440,7 @@ function customGuiButton(event){
             return;
         }
         
-        // Save current state
+        // Save current visible items and tab items BEFORE incrementing maxPages
         savePageItems();
         saveTabItems();
         
@@ -454,12 +454,16 @@ function customGuiButton(event){
         
         player.message("§aAdded tab! Total tabs: §e" + maxPages);
         
-        // Reset all references before recreating
+        // Close the GUI properly to trigger save, then reopen
+        player.closeGui();
+        
+        // Small delay to ensure GUI is closed before reopening
+        // Reset references
         highlightedSlot = null;
         highlightLineIds = [];
         guiRef = null;
         
-        // Recreate GUI directly
+        // Recreate GUI
         interact({player: player, API: api, npc: lastNpc});
         return;
     }
@@ -473,7 +477,7 @@ function customGuiButton(event){
             return;
         }
         
-        // Save current state
+        // Save current visible items and tab items FIRST
         savePageItems();
         saveTabItems();
         
@@ -560,12 +564,15 @@ function customGuiButton(event){
         
         player.message("§aDeleted tab! Total tabs: §e" + maxPages);
         
+        // Close GUI properly
+        player.closeGui();
+        
         // Reset all references before recreating
         highlightedSlot = null;
         highlightLineIds = [];
         guiRef = null;
         
-        // Recreate GUI directly
+        // Recreate GUI
         interact({player: player, API: api, npc: lastNpc});
         return;
     }
