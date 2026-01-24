@@ -653,17 +653,19 @@ function customGuiSlotClicked(event) {
     var slotIndex = mySlots.indexOf(clickedSlot);
 
     if(adminMode) {
-        var highlightedTabIndex = tabSlots.indexOf(highlightedSlot);
-        if(highlightedTabIndex !== -1 && slotIndex === -1 && stack && !stack.isEmpty()){
-            var itemCopy = player.world.createItemFromNbt(stack.getItemNbt());
-            highlightedSlot.setStack(itemCopy);
-            saveTabItems();
+        // Check if clicking a tab slot
+        var clickedTabIndex = tabSlots.indexOf(clickedSlot);
+        
+        // If clicking on a tab slot directly, highlight it
+        if(clickedTabIndex !== -1) {
+            highlightedSlot = clickedSlot;
             if(guiRef) guiRef.update();
             return;
         }
         
+        // If clicking on a shop slot, highlight it
         if(slotIndex !== -1) {
-            if(!guiRef) return; // Guard: don't try to highlight if GUI is null
+            if(!guiRef) return;
             
             highlightedSlot = clickedSlot;
             
@@ -682,40 +684,76 @@ function customGuiSlotClicked(event) {
             return;
         }
 
+        // If no slot is highlighted, do nothing
         if(!highlightedSlot) return;
 
+        // Check if the highlighted slot is a tab slot
+        var isTabSlot = tabSlots.indexOf(highlightedSlot) !== -1;
+        
         try {
             var slotStack = highlightedSlot.getStack();
             var maxStack = stack ? stack.getMaxStackSize() : 64;
 
-            // Check if clicked slot is empty (no stack or empty stack)
-            if(!stack || stack.isEmpty()) {
-                // Empty slot clicked - clear the highlighted slot
-                if(slotStack && !slotStack.isEmpty()) {
-                    highlightedSlot.setStack(player.world.createItem("minecraft:air", 1));
-                    player.message("§eCleared highlighted slot");
-                    if(guiRef) guiRef.update();
-                }
-            } else {
-                // Slot has an item - proceed with normal item transfer logic
+            // If clicking with an item in hand
+            if(stack && !stack.isEmpty()) {
+                // Check if same item type for stacking
                 if(slotStack && !slotStack.isEmpty() && slotStack.getDisplayName() === stack.getDisplayName()) {
+                    // Try to stack
                     var total = slotStack.getStackSize() + stack.getStackSize();
                     if(total <= maxStack) {
+                        // All fits
                         slotStack.setStackSize(total);
                         highlightedSlot.setStack(slotStack);
+                        player.removeItem(stack, stack.getStackSize());
                     } else {
+                        // Partial stack
+                        var overflow = total - maxStack;
                         slotStack.setStackSize(maxStack);
                         highlightedSlot.setStack(slotStack);
+                        var overflowCopy = player.world.createItemFromNbt(stack.getItemNbt());
+                        overflowCopy.setStackSize(overflow);
+                        player.removeItem(stack, stack.getStackSize());
+                        player.giveItem(overflowCopy);
                     }
                 } else {
+                    // Different items - swap
                     var itemCopy = player.world.createItemFromNbt(stack.getItemNbt());
-                    if(slotStack && !slotStack.isEmpty()) player.giveItem(slotStack);
+                    
+                    // Return old item from GUI slot to player
+                    if(slotStack && !slotStack.isEmpty()) {
+                        player.giveItem(slotStack);
+                    }
+                    
+                    // Place new item in highlighted slot
                     highlightedSlot.setStack(itemCopy);
+                    
+                    // Remove item from player's inventory
+                    player.removeItem(stack, stack.getStackSize());
                 }
+                
+                if(isTabSlot) {
+                    saveTabItems();
+                } else {
+                    savePageItems();
+                }
+            } else if(slotStack && !slotStack.isEmpty()) {
+                // Empty hand - take item from highlighted slot
+                player.giveItem(slotStack);
+                highlightedSlot.setStack(player.world.createItem("minecraft:air", 1));
+                
+                if(isTabSlot) {
+                    saveTabItems();
+                } else {
+                    savePageItems();
+                }
+                
+                if(guiRef) guiRef.update();
             }
 
             if(guiRef) guiRef.update();
-        } catch(e) {}
+        } catch(e) {
+            player.message("§cError: " + e);
+        }
         
     } else {
         if(slotIndex === -1) return;
