@@ -8,7 +8,7 @@ var lastBlock = null;
 var highlightedSlot = null;
 var highlightLineIds = [];
 
-var BREW_TIME = 3; // 3 seconds
+var BREW_TIME = 10; // 3 seconds
 var INGREDIENT_COUNT = 3; // mug, cocoa beans, milk bottle
 
 var brewingProgress = null; // In-memory only, not saved
