@@ -1,6 +1,5 @@
 // Shop NPC Script with Tabs and Button Scrolling
 // Place this in the NPC's Interact, customGuiButton, customGuiSlotClicked, and customGuiClosed events
-
 var guiRef;                 
 var mySlots = [];           
 var highlightLineIds = [];  
@@ -10,17 +9,14 @@ var storedSlotItems = {};
 var currentPage = 0;        
 var maxPages = 5;           // Will be loaded from storage
 var skipSaveOnClose = false; // Flag to prevent saving after tab operations           
-
 // Viewport system
 var viewportRow = 0;        
 var viewportRows = 6;       
 var totalRows = 20;         
 var numCols = 9;            
-
 // Currency conversion rates
 var STONE_TO_COAL = 100;
 var COAL_TO_EMERALD = 100;
-
 // Component IDs
 var ID_PRICE_FIELD = 100;
 var ID_SET_PRICE_BUTTON = 101;
@@ -31,13 +27,11 @@ var ID_ROWS_FIELD = 115;
 var ID_SET_ROWS_BUTTON = 116;
 var ID_ADD_TAB = 117;
 var ID_REMOVE_TAB = 118;
-
 function makeNullArray(n){
     var a = new Array(n);
     for (var i = 0; i < n; i++){ a[i] = null; }
     return a;
 }
-
 // Load total rows for current tab
 function loadTabRowConfig(npcData) {
     if(npcData.has("TabRows")) {
@@ -55,7 +49,6 @@ function loadTabRowConfig(npcData) {
         totalRows = 20;
     }
 }
-
 // Save total rows for current tab
 function saveTabRowConfig(npcData, rows) {
     var tabRowsConfig = {};
@@ -67,7 +60,6 @@ function saveTabRowConfig(npcData, rows) {
     tabRowsConfig[currentPage] = rows;
     npcData.put("TabRows", JSON.stringify(tabRowsConfig));
 }
-
 // Load max pages
 function loadMaxPages(npcData) {
     if(npcData.has("MaxPages")) {
@@ -82,12 +74,10 @@ function loadMaxPages(npcData) {
         maxPages = 5;
     }
 }
-
 // Save max pages
 function saveMaxPages(npcData, pages) {
     npcData.put("MaxPages", pages);
 }
-
 // ========== Layout ==========
 var slotPositions = [];
 var tabSlots = [];
@@ -95,7 +85,6 @@ var startX = 0;          // Moved 3 pixels left (3-3=0)
 var startY = -50;
 var rowSpacing = 18;      
 var colSpacing = 18;        
-
 for (var row = 0; row < viewportRows; row++) {
     var y = startY + row * rowSpacing;
     for (var col = 0; col < numCols; col++) {
@@ -103,62 +92,47 @@ for (var row = 0; row < viewportRows; row++) {
         slotPositions.push({x: x, y: y});
     }
 }
-
 function viewportToGlobal(slotIndex) {
     var localRow = Math.floor(slotIndex / numCols);
     var localCol = slotIndex % numCols;
     var globalRow = viewportRow + localRow;
     return globalRow * numCols + localCol;
 }
-
 // ========== Open GUI ==========
 function interact(event) {
     var player = event.player;
     var api = event.API;
-
     lastNpc = event.npc; 
     var npcData = lastNpc.getStoreddata();
-
     // Load max pages
     loadMaxPages(npcData);
-
     // Load row configuration for this tab
     loadTabRowConfig(npcData);
-
     // Load shop items
     storedSlotItems = npcData.has("ShopItems") 
         ? JSON.parse(npcData.get("ShopItems")) 
         : {};
-    
     var adminMode = (player.getMainhandItem() && player.getMainhandItem().getName() === "minecraft:bedrock");
-    
     if(adminMode){
-        player.message("§7DEBUG INTERACT: maxPages=" + maxPages + ", currentPage=" + currentPage);
         var loadedCount = 0;
         for(var key in storedSlotItems){
             if(storedSlotItems.hasOwnProperty(key)){
                 loadedCount++;
-                player.message("§7DEBUG INTERACT: Found stored tab " + key);
             }
         }
-        player.message("§7DEBUG INTERACT: Loaded " + loadedCount + " tabs from storage");
     }
-    
     // CLEANUP: Remove any ghost tabs beyond maxPages (only in memory, will save on GUI close)
     for(var key in storedSlotItems){
         if(storedSlotItems.hasOwnProperty(key)){
             var tabIndex = parseInt(key);
             if(tabIndex >= maxPages){
-                if(adminMode) player.message("§7DEBUG INTERACT: Cleaning ghost tab " + tabIndex);
                 delete storedSlotItems[key];
             }
         }
     }
-    
     var storedTabItems = npcData.has("TabItems")
         ? JSON.parse(npcData.get("TabItems"))
         : makeNullArray(maxPages);
-    
     // Ensure storedTabItems matches current maxPages
     if(storedTabItems.length < maxPages){
         // Add null entries for new tabs
@@ -169,27 +143,21 @@ function interact(event) {
         // Trim excess tabs
         storedTabItems = storedTabItems.slice(0, maxPages);
     }
-
     var totalSlots = totalRows * numCols;
     if(!storedSlotItems[currentPage]){
         storedSlotItems[currentPage] = makeNullArray(totalSlots);
     }
-
     highlightedSlot = null;
     highlightLineIds = [];
-
     var adminMode = (player.getMainhandItem() && player.getMainhandItem().getName() === "minecraft:bedrock");
-
     if(!guiRef){
         guiRef = api.createCustomGui(176, 166, 0, true, player);
-
         // Tabs
         var tabWidth = 25;
         var tabHeight = 28;
         var tabSpacing = 2;
         var tabStartX = 0;
         var tabY = -80;     // Moved 1 pixel up (-79-1=-80)
-        
         tabSlots = [];
         for(var i = 0; i < maxPages; i++){
             var tabX = tabStartX + i * (tabWidth + tabSpacing);
@@ -197,45 +165,35 @@ function interact(event) {
             tabSlots.push(tabSlot);
             guiRef.addButton(ID_TAB_BASE + i, "", tabX, tabY, tabWidth, tabHeight);
         }
-
         // Item slots
         mySlots = slotPositions.map(function(pos) {
             return guiRef.addItemSlot(pos.x, pos.y);
         });
-
         // Scroll buttons on the right side - square buttons
         var scrollX = startX + (numCols * colSpacing) + 2;
         var scrollY = startY;
-        
         guiRef.addButton(ID_SCROLL_UP, "↑", scrollX, scrollY, 18, 18);
         guiRef.addButton(ID_SCROLL_DOWN, "↓", scrollX, scrollY + 20, 18, 18);
-        
         // Scroll position indicator - 2px left from previous position
         guiRef.addLabel(10, "", scrollX + 1, scrollY + 42, 0.7, 0.7);
-
         if(adminMode){
             // Price/Name section - moved up 5 pixels
             guiRef.addLabel(3, "§7Price/Name:", 2, -100, 0.8, 0.8);
             guiRef.addTextField(ID_PRICE_FIELD, 60, -104, 60, 18).setText("");
             guiRef.addButton(ID_SET_PRICE_BUTTON, "Set", 125, -104, 35, 18);
-            
             // Tab management buttons - next to tabs
             var tabManageX = (maxPages * 27) + 2;
             guiRef.addButton(ID_ADD_TAB, "+", tabManageX, -80, 16, 14);
             guiRef.addButton(ID_REMOVE_TAB, "-", tabManageX + 18, -80, 16, 14);
             guiRef.addLabel(7, "§7Tabs", tabManageX - 8, -92, 0.7, 0.7);
-            
             // Admin Shop Editor - moved down to accommodate new row
             guiRef.addLabel(1, "§6Admin Shop Editor", 2, 63, 1.0, 1.0);
-            
             // Rows configuration - moved down 1 pixel
             guiRef.addLabel(6, "§7Total Rows:", -105, -29, 0.8, 0.8);
             guiRef.addTextField(ID_ROWS_FIELD, -105, -17, 40, 18).setText("" + totalRows);
             guiRef.addButton(ID_SET_ROWS_BUTTON, "Set", -60, -17, 30, 18);
-            
             guiRef.showPlayerInventory(3, 91, false);
         }
-        
         // Load tab items BEFORE showing GUI
         for(var i = 0; i < tabSlots.length; i++){
             if(storedTabItems[i]){
@@ -247,7 +205,6 @@ function interact(event) {
                 tabSlots[i].setStack(null);
             }
         }
-
         player.showCustomGui(guiRef);
     } else {
         // GUI already exists, just reload tab items
@@ -262,7 +219,6 @@ function interact(event) {
             }
         }
     }
-    
     // Add highlight around current tab in admin mode - ALWAYS show when admin
     if(adminMode && guiRef && currentPage < maxPages){
         var tabWidth = 25;
@@ -270,9 +226,7 @@ function interact(event) {
         var tabSpacing = 2;
         var tabStartX = 0;
         var tabY = -80;
-        
         var highlightTabX = tabStartX + currentPage * (tabWidth + tabSpacing);
-        
         // Remove old highlight if exists
         try {
             guiRef.removeComponent(20);
@@ -280,7 +234,6 @@ function interact(event) {
             guiRef.removeComponent(22);
             guiRef.removeComponent(23);
         } catch(e) {}
-        
         try {
             // Draw highlight box around current tab
             guiRef.addColoredLine(20, highlightTabX - 1, tabY - 1, highlightTabX + tabWidth + 1, tabY - 1, 0xFFFF00, 2);
@@ -289,20 +242,15 @@ function interact(event) {
             guiRef.addColoredLine(23, highlightTabX + tabWidth + 1, tabY - 1, highlightTabX + tabWidth + 1, tabY + tabHeight + 1, 0xFFFF00, 2);
         } catch(e) {}
     }
-
     updateVisibleSlots(player, api, adminMode);
     updateScrollIndicator();
-    
     if(guiRef){
         guiRef.update();
     }
 }
-
 function updateScrollIndicator(){
     if(!guiRef) return;
-    
     var maxViewportRow = Math.max(0, totalRows - viewportRows);
-    
     try {
         guiRef.removeComponent(10);
         var scrollX = startX + (numCols * colSpacing) + 2;
@@ -310,17 +258,13 @@ function updateScrollIndicator(){
         guiRef.addLabel(10, "§7" + (viewportRow + 1) + "/" + (maxViewportRow + 1), scrollX + 1, scrollY + 42, 0.7, 0.7);
     } catch(e) {}
 }
-
 function updateVisibleSlots(player, api, adminMode){
     for(var i = 0; i < mySlots.length; i++){
         mySlots[i].setStack(null);
-        
         var globalIndex = viewportToGlobal(i);
-        
         if(globalIndex < storedSlotItems[currentPage].length && storedSlotItems[currentPage][globalIndex]) {
             try {
                 var item = player.world.createItemFromNbt(api.stringToNbt(storedSlotItems[currentPage][globalIndex]));
-                
                 var price = null;
                 var lore = item.getLore();
                 for(var j = 0; j < lore.length; j++){
@@ -334,45 +278,35 @@ function updateVisibleSlots(player, api, adminMode){
                         }
                     }
                 }
-                
                 if(price !== null && price !== undefined){
                     var existingLore = item.getLore();
                     var loreArray = [];
-                    
                     for(var j = 0; j < existingLore.length; j++){
                         var line = existingLore[j];
                         if(line.indexOf("Price:") === -1 && line.indexOf("Click to purchase") === -1){
                             loreArray.push(line);
                         }
                     }
-                    
                     while(loreArray.length > 0 && loreArray[loreArray.length - 1] === ""){
                         loreArray.pop();
                     }
-                    
                     loreArray.push("");
                     loreArray.push("§aPrice: §e" + price + "¢");
-                    
                     if(!adminMode){
                         loreArray.push("§7Click to purchase");
                     }
-                    
                     item.setLore(loreArray);
                 }
-                
                 mySlots[i].setStack(item);
             } catch(e) {}
         }
     }
 }
-
 function customGuiButton(event){
     var player = event.player;
     var api = event.API;
     var adminMode = (player.getMainhandItem() && player.getMainhandItem().getName() === "minecraft:bedrock");
-    
     var maxViewportRow = Math.max(0, totalRows - viewportRows);
-    
     // Scroll buttons
     if(event.buttonId === ID_SCROLL_UP){
         if(viewportRow > 0){
@@ -384,7 +318,6 @@ function customGuiButton(event){
         }
         return;
     }
-    
     if(event.buttonId === ID_SCROLL_DOWN){
         if(viewportRow < maxViewportRow){
             savePageItems(); // SAVE FIRST before scrolling
@@ -395,15 +328,12 @@ function customGuiButton(event){
         }
         return;
     }
-    
     // Tab buttons
     if(event.buttonId >= ID_TAB_BASE && event.buttonId < ID_TAB_BASE + maxPages){
         var tabIndex = event.buttonId - ID_TAB_BASE;
-        
         if(adminMode){
             highlightedSlot = tabSlots[tabIndex];
         }
-        
         if(tabIndex !== currentPage){
             savePageItems();
             saveTabItems(); // SAVE TAB ITEMS before switching
@@ -413,63 +343,50 @@ function customGuiButton(event){
         }
         return;
     }
-    
     // Set Rows button
     if(event.buttonId === ID_SET_ROWS_BUTTON){
         if(!adminMode) return;
-        
         var rowsField = event.gui.getComponent(ID_ROWS_FIELD);
         if(!rowsField) return;
-        
         var inputText = rowsField.getText().trim();
         if(!inputText) {
             player.message("§cPlease enter a number!");
             return;
         }
-        
         var newRows = parseInt(inputText);
         if(isNaN(newRows) || newRows < 1 || newRows > 100) {
             player.message("§cInvalid! Enter a number between 1 and 100.");
             return;
         }
-        
         // Save current items first
         savePageItems();
-        
         // Update total rows
         totalRows = newRows;
-        
         // Save row config
         if(lastNpc) {
             var npcData = lastNpc.getStoreddata();
             saveTabRowConfig(npcData, totalRows);
         }
-        
         // Reset viewport if out of bounds
         var maxViewportRow = Math.max(0, totalRows - viewportRows);
         if(viewportRow > maxViewportRow) {
             viewportRow = maxViewportRow;
         }
-        
         // Refresh GUI
         player.message("§aSet total rows to §e" + totalRows + " §afor this tab!");
         interact({player: player, API: api, npc: lastNpc});
         return;
     }
-    
     // Add Tab button
     if(event.buttonId === ID_ADD_TAB){
         if(!adminMode) return;
-        
         if(maxPages >= 10){
             player.message("§cMaximum 10 tabs allowed!");
             return;
         }
-        
         // Save ONLY the current viewport items before any changes
         if(lastNpc && mySlots && mySlots.length > 0){
             var npcData = lastNpc.getStoreddata();
-            
             // Load existing items
             var allItems = {};
             if(npcData.has("ShopItems")){
@@ -477,23 +394,19 @@ function customGuiButton(event){
                     allItems = JSON.parse(npcData.get("ShopItems"));
                 } catch(e) {}
             }
-            
             // Ensure current page array exists
             var totalSlots = totalRows * numCols;
             if(!allItems[currentPage]){
                 allItems[currentPage] = makeNullArray(totalSlots);
             }
-            
             // Save visible viewport items
             for(var i = 0; i < mySlots.length; i++){
                 var globalIndex = viewportToGlobal(i);
                 var stack = mySlots[i].getStack();
                 allItems[currentPage][globalIndex] = stack && !stack.isEmpty() ? stack.getItemNbt().toJsonString() : null;
             }
-            
             // Save back
             npcData.put("ShopItems", JSON.stringify(allItems));
-            
             // Save tab items
             if(tabSlots && tabSlots.length > 0){
                 var tabItems = tabSlots.map(function(slot){
@@ -506,17 +419,13 @@ function customGuiButton(event){
                 npcData.put("TabItems", JSON.stringify(tabItems));
             }
         }
-        
         // Increment maxPages
         maxPages++;
-        
         if(lastNpc){
             var npcData = lastNpc.getStoreddata();
             saveMaxPages(npcData, maxPages);
         }
-        
         player.message("§aAdded tab! Total tabs: §e" + maxPages);
-        
         // Reset references and close GUI
         highlightedSlot = null;
         highlightLineIds = [];
@@ -524,28 +433,20 @@ function customGuiButton(event){
         viewportRow = 0;
         currentPage = 0; // CRITICAL: Reset to 0 BEFORE closing
         skipSaveOnClose = true; // CRITICAL: Don't save in customGuiClosed - we already saved!
-        
         // Close the GUI
         event.gui.close();
         return;
     }
-    
     // Remove Tab button - deletes CURRENT PAGE
     if(event.buttonId === ID_REMOVE_TAB){
         if(!adminMode) return;
-        
         if(maxPages <= 1){
             player.message("§cMust have at least 1 tab!");
             return;
         }
-        
         var tabToDelete = currentPage;
-        player.message("§7DEBUG: Deleting tab index " + tabToDelete + " (Tab " + (tabToDelete + 1) + ")");
-        player.message("§7DEBUG: Total tabs before deletion: " + maxPages);
-        
         if(lastNpc){
             var npcData = lastNpc.getStoreddata();
-            
             // FIRST: Save current viewport items before we do anything
             // This ensures any unsaved changes are written
             var allItems = {};
@@ -554,24 +455,20 @@ function customGuiButton(event){
                     allItems = JSON.parse(npcData.get("ShopItems"));
                 } catch(e) {}
             }
-            
             // CLEAN UP: Remove any ghost tabs beyond current maxPages
             for(var key in allItems){
                 if(allItems.hasOwnProperty(key)){
                     var tabIndex = parseInt(key);
                     if(tabIndex >= maxPages){
-                        player.message("§7DEBUG: Removing ghost tab " + tabIndex);
                         delete allItems[key];
                     }
                 }
             }
-            
             // Save the current visible items to their proper location
             var totalSlots = totalRows * numCols;
             if(!allItems[currentPage]){
                 allItems[currentPage] = makeNullArray(totalSlots);
             }
-            
             if(mySlots && mySlots.length > 0){
                 for(var i = 0; i < mySlots.length; i++){
                     var globalIndex = viewportToGlobal(i);
@@ -579,34 +476,26 @@ function customGuiButton(event){
                     allItems[currentPage][globalIndex] = stack && !stack.isEmpty() ? stack.getItemNbt().toJsonString() : null;
                 }
             }
-            
             // Debug: show what we have AFTER saving current viewport
             var itemsCount = 0;
             for(var key in allItems){
                 if(allItems.hasOwnProperty(key)){
                     itemsCount++;
-                    player.message("§7DEBUG: Tab " + key + " has items");
                 }
             }
-            player.message("§7DEBUG: Found " + itemsCount + " tabs with items");
-            
             // NOW create completely new items object, skipping the deleted tab
             var newAllItems = {};
             var newIndex = 0;
-            
             for(var oldIndex = 0; oldIndex < maxPages; oldIndex++){
                 if(oldIndex !== tabToDelete){
                     // This tab survives - copy it to new position
                     if(allItems[oldIndex]){
                         newAllItems[newIndex] = allItems[oldIndex];
-                        player.message("§7DEBUG: Moving tab " + oldIndex + " -> " + newIndex);
                     }
                     newIndex++;
                 } else {
-                    player.message("§7DEBUG: Skipping (deleting) tab " + oldIndex);
                 }
             }
-            
             // Debug: show what we're saving
             var newItemsCount = 0;
             for(var key in newAllItems){
@@ -614,13 +503,9 @@ function customGuiButton(event){
                     newItemsCount++;
                 }
             }
-            player.message("§7DEBUG: Saving " + newItemsCount + " tabs");
-            
             // Force save with fresh npcData reference
             var freshNpcData = lastNpc.getStoreddata();
             freshNpcData.put("ShopItems", JSON.stringify(newAllItems));
-            player.message("§7DEBUG: ShopItems saved to NPC storage");
-            
             // Handle tab items (icons) 
             var allTabItems = [];
             if(npcData.has("TabItems")){
@@ -632,23 +517,18 @@ function customGuiButton(event){
             } else {
                 allTabItems = makeNullArray(maxPages);
             }
-            
             var newTabItems = [];
             for(var oldIndex = 0; oldIndex < maxPages; oldIndex++){
                 if(oldIndex !== tabToDelete){
                     newTabItems.push(allTabItems[oldIndex] || null);
                 }
             }
-            
             freshNpcData.put("TabItems", JSON.stringify(newTabItems));
-            player.message("§7DEBUG: TabItems saved to NPC storage");
-            
             // Handle row configs
             if(freshNpcData.has("TabRows")){
                 try {
                     var tabRowsConfig = JSON.parse(npcData.get("TabRows"));
                     var newRowsConfig = {};
-                    
                     newIndex = 0;
                     for(var oldIndex = 0; oldIndex < maxPages; oldIndex++){
                         if(oldIndex !== tabToDelete){
@@ -658,36 +538,24 @@ function customGuiButton(event){
                             newIndex++;
                         }
                     }
-                    
                     freshNpcData.put("TabRows", JSON.stringify(newRowsConfig));
-                    player.message("§7DEBUG: TabRows saved to NPC storage");
                 } catch(e) {
-                    player.message("§cDEBUG: Error saving TabRows: " + e);
                 }
             }
         }
-        
         // NOW decrement maxPages
         maxPages--;
-        
         // Adjust currentPage
         if(tabToDelete < currentPage){
             currentPage--;
         } else if(currentPage >= maxPages){
             currentPage = maxPages - 1;
         }
-        
-        player.message("§7DEBUG: New currentPage: " + currentPage);
-        player.message("§7DEBUG: Total tabs after deletion: " + maxPages);
-        
         if(lastNpc){
             var saveNpcData = lastNpc.getStoreddata();
             saveMaxPages(saveNpcData, maxPages);
-            player.message("§7DEBUG: MaxPages saved to NPC storage");
         }
-        
         player.message("§aDeleted tab §e" + (tabToDelete + 1) + "§a! Total tabs: §e" + maxPages);
-        
         // Reset references and close GUI
         highlightedSlot = null;
         highlightLineIds = [];
@@ -695,93 +563,71 @@ function customGuiButton(event){
         viewportRow = 0;
         currentPage = 0; // CRITICAL: Reset to 0 BEFORE closing
         skipSaveOnClose = true; // CRITICAL: Don't save in customGuiClosed - we already saved!
-        
         event.gui.close();
         return;
     }
-    
     if(event.buttonId !== ID_SET_PRICE_BUTTON) return;
-    
     if(!adminMode) return;
-    
     var priceField = event.gui.getComponent(ID_PRICE_FIELD);
     if(!priceField) return;
-    
     var inputText = priceField.getText().trim();
     if(!inputText) {
         player.message("§cPlease enter a value!");
         return;
     }
-    
     var tabSlotIndex = tabSlots.indexOf(highlightedSlot);
-    
     if(tabSlotIndex !== -1){
         var tabItem = highlightedSlot.getStack();
         if(!tabItem || tabItem.isEmpty()){
             player.message("§cNo item in selected tab slot!");
             return;
         }
-        
         tabItem.setCustomName(inputText);
         highlightedSlot.setStack(tabItem);
         player.message("§aRenamed tab to: " + inputText);
         saveTabItems();
         return;
     }
-    
     if(!highlightedSlot) {
         player.message("§cPlease select a slot first!");
         return;
     }
-    
     var price = parseFloat(inputText);
     if(isNaN(price) || price < 0) {
         player.message("§cInvalid price! Use a number.");
         return;
     }
-    
     var item = highlightedSlot.getStack();
     if(!item || item.isEmpty()) {
         player.message("§cNo item in selected slot!");
         return;
     }
-    
     var priceValue = Math.floor(price);
-    
     var existingLore = item.getLore();
     var loreArray = [];
-    
     for(var j = 0; j < existingLore.length; j++){
         var line = existingLore[j];
         if(line.indexOf("Price:") === -1 && line.indexOf("Click to purchase") === -1){
             loreArray.push(line);
         }
     }
-    
     while(loreArray.length > 0 && loreArray[loreArray.length - 1] === ""){
         loreArray.pop();
     }
-    
     loreArray.push("");
     loreArray.push("§aPrice: §e" + priceValue + "¢");
-    
     item.setLore(loreArray);
     highlightedSlot.setStack(item);
-    
     player.message("§aSet price §e" + priceValue + "¢ §afor item!");
-    
     savePageItems();
 }
-
 function customGuiSlotClicked(event) {
     var clickedSlot = event.slot;
     var stack = event.stack;
     var player = event.player;
     var api = event.API;
     var adminMode = (player.getMainhandItem() && player.getMainhandItem().getName() === "minecraft:bedrock");
-
     var slotIndex = mySlots.indexOf(clickedSlot);
-
     if(adminMode) {
         // Check if clicking a tab slot directly
         var clickedTabIndex = -1;
@@ -791,25 +637,20 @@ function customGuiSlotClicked(event) {
                 break;
             }
         }
-        
         // If clicking on a tab slot, highlight it for item placement
         if(clickedTabIndex !== -1) {
             highlightedSlot = clickedSlot;
             if(guiRef) guiRef.update();
             return;
         }
-        
         // If clicking on a shop slot, highlight it
         if(slotIndex !== -1) {
             if(!guiRef) return;
-            
             highlightedSlot = clickedSlot;
-            
             for(var i=0; i<highlightLineIds.length; i++){
                 try { guiRef.removeComponent(highlightLineIds[i]); } catch(e) {}
             }
             highlightLineIds = [];
-
             var pos = slotPositions[slotIndex];
             var x = pos.x, y = pos.y, w = 18, h = 18;
             highlightLineIds.push(guiRef.addColoredLine(1, x, y, x+w, y, 0xADD8E6, 2));
@@ -819,10 +660,8 @@ function customGuiSlotClicked(event) {
             if(guiRef) guiRef.update();
             return;
         }
-
         // If no slot is highlighted, do nothing
         if(!highlightedSlot) return;
-
         // Check if the highlighted slot is a tab slot
         var isTabSlot = false;
         for(var i = 0; i < tabSlots.length; i++){
@@ -831,11 +670,9 @@ function customGuiSlotClicked(event) {
                 break;
             }
         }
-        
         try {
             var slotStack = highlightedSlot.getStack();
             var maxStack = stack ? stack.getMaxStackSize() : 64;
-
             // If clicking with an item in hand
             if(stack && !stack.isEmpty()) {
                 // Check if same item type for stacking
@@ -860,19 +697,15 @@ function customGuiSlotClicked(event) {
                 } else {
                     // Different items - swap
                     var itemCopy = player.world.createItemFromNbt(stack.getItemNbt());
-                    
                     // Return old item from GUI slot to player
                     if(slotStack && !slotStack.isEmpty()) {
                         player.giveItem(slotStack);
                     }
-                    
                     // Place new item in highlighted slot
                     highlightedSlot.setStack(itemCopy);
-                    
                     // Remove item from player's inventory
                     player.removeItem(stack, stack.getStackSize());
                 }
-                
                 if(isTabSlot) {
                     saveTabItems();
                 } else {
@@ -882,31 +715,23 @@ function customGuiSlotClicked(event) {
                 // Empty hand - take item from highlighted slot
                 player.giveItem(slotStack);
                 highlightedSlot.setStack(player.world.createItem("minecraft:air", 1));
-                
                 if(isTabSlot) {
                     saveTabItems();
                 } else {
                     savePageItems();
                 }
-                
                 if(guiRef) guiRef.update();
             }
-
             if(guiRef) guiRef.update();
         } catch(e) {
             player.message("§cError: " + e);
         }
-        
     } else {
         if(slotIndex === -1) return;
-        
         var globalIndex = viewportToGlobal(slotIndex);
-        
         if(globalIndex >= storedSlotItems[currentPage].length) return;
-        
         var item = mySlots[slotIndex].getStack();
         if(!item || item.isEmpty()) return;
-        
         var price = null;
         var lore = item.getLore();
         for(var i = 0; i < lore.length; i++){
@@ -920,25 +745,19 @@ function customGuiSlotClicked(event) {
                 }
             }
         }
-        
         if(price === null || price === undefined) {
             player.message("§cThis item has no price set!");
             return;
         }
-        
         var playerCoins = countPlayerCoins(player);
-        
         if(playerCoins < price) {
             player.message("§cNot enough coins! Need: §e" + price + "¢ §c, Have: §e" + playerCoins + "¢");
             return;
         }
-        
         removeCoins(player, price);
-        
         try {
             if(storedSlotItems[currentPage][globalIndex]) {
                 var purchaseItem = player.world.createItemFromNbt(api.stringToNbt(storedSlotItems[currentPage][globalIndex]));
-                
                 var purchaseLore = purchaseItem.getLore();
                 var cleanLore = [];
                 for(var i = 0; i < purchaseLore.length; i++){
@@ -951,7 +770,6 @@ function customGuiSlotClicked(event) {
                     cleanLore.pop();
                 }
                 purchaseItem.setLore(cleanLore);
-                
                 player.giveItem(purchaseItem);
                 player.message("§aPurchased item for §e" + price + "¢!");
             }
@@ -960,7 +778,6 @@ function customGuiSlotClicked(event) {
         }
     }
 }
-
 function customGuiClosed(event) {
     if(!skipSaveOnClose){
         savePageItems();
@@ -973,29 +790,23 @@ function customGuiClosed(event) {
     viewportRow = 0;
     currentPage = 0; // Reset to tab 1 when GUI closes
 }
-
 function savePageItems(){
     if(!lastNpc) return;
     var npcData = lastNpc.getStoreddata();
-
     var totalSlots = totalRows * numCols;
     if(!storedSlotItems[currentPage] || storedSlotItems[currentPage].length !== totalSlots){
         storedSlotItems[currentPage] = makeNullArray(totalSlots);
     }
-
     for(var i = 0; i < mySlots.length; i++){
         var globalIndex = viewportToGlobal(i);
         var stack = mySlots[i].getStack();
         storedSlotItems[currentPage][globalIndex] = stack && !stack.isEmpty() ? stack.getItemNbt().toJsonString() : null;
     }
-
     npcData.put("ShopItems", JSON.stringify(storedSlotItems));
 }
-
 function saveTabItems(){
     if(!lastNpc || !tabSlots || tabSlots.length === 0) return;
     var npcData = lastNpc.getStoreddata();
-    
     var tabItems = tabSlots.map(function(slot){
         var stack = slot.getStack();
         if(stack && !stack.isEmpty()){
@@ -1003,16 +814,13 @@ function saveTabItems(){
         }
         return null;
     });
-    
     npcData.put("TabItems", JSON.stringify(tabItems));
 }
-
 function countPlayerCoins(player) {
     var stoneTotal = 0;
     var coalTotal = 0;
     var emeraldTotal = 0;
     var inv = player.getInventory();
-    
     for(var i = 0; i < inv.getSize(); i++) {
         var stack = inv.getSlot(i);
         if(stack && !stack.isEmpty()) {
@@ -1026,14 +834,11 @@ function countPlayerCoins(player) {
             }
         }
     }
-    
     return stoneTotal + (coalTotal * STONE_TO_COAL) + (emeraldTotal * STONE_TO_COAL * COAL_TO_EMERALD);
 }
-
 function removeCoins(player, amount) {
     var remaining = amount;
     var inv = player.getInventory();
-    
     for(var i = 0; i < inv.getSize() && remaining > 0; i++) {
         var stack = inv.getSlot(i);
         if(stack && !stack.isEmpty() && stack.getName() === "coins:stone_coin") {
@@ -1047,13 +852,11 @@ function removeCoins(player, amount) {
             }
         }
     }
-    
     for(var i = 0; i < inv.getSize() && remaining > 0; i++) {
         var stack = inv.getSlot(i);
         if(stack && !stack.isEmpty() && stack.getName() === "coins:coal_coin") {
             var stackAmount = stack.getStackSize();
             var stoneValue = stackAmount * STONE_TO_COAL;
-            
             if(stoneValue <= remaining) {
                 inv.setSlot(i, null);
                 remaining -= stoneValue;
@@ -1062,7 +865,6 @@ function removeCoins(player, amount) {
                 stack.setStackSize(stackAmount - coalsNeeded);
                 var overpaid = (coalsNeeded * STONE_TO_COAL) - remaining;
                 remaining = 0;
-                
                 if(overpaid > 0){
                     var changeItem = player.world.createItem("coins:stone_coin", overpaid);
                     player.giveItem(changeItem);
@@ -1070,13 +872,11 @@ function removeCoins(player, amount) {
             }
         }
     }
-    
     for(var i = 0; i < inv.getSize() && remaining > 0; i++) {
         var stack = inv.getSlot(i);
         if(stack && !stack.isEmpty() && stack.getName() === "coins:emerald_coin") {
             var stackAmount = stack.getStackSize();
             var stoneValue = stackAmount * STONE_TO_COAL * COAL_TO_EMERALD;
-            
             if(stoneValue <= remaining) {
                 inv.setSlot(i, null);
                 remaining -= stoneValue;
@@ -1085,11 +885,9 @@ function removeCoins(player, amount) {
                 stack.setStackSize(stackAmount - emeraldsNeeded);
                 var overpaid = (emeraldsNeeded * STONE_TO_COAL * COAL_TO_EMERALD) - remaining;
                 remaining = 0;
-                
                 if(overpaid > 0){
                     var changeCoal = Math.floor(overpaid / STONE_TO_COAL);
                     var changeStone = overpaid % STONE_TO_COAL;
-                    
                     if(changeCoal > 0){
                         var coalItem = player.world.createItem("coins:coal_coin", changeCoal);
                         player.giveItem(coalItem);
