@@ -8,13 +8,21 @@ var lastBlock = null;
 var highlightedSlot = null;
 var highlightLineIds = [];
 
-var BREW_TIME = 3; // 30 seconds
+var BREW_TIME = 3; // 3 seconds
 var INGREDIENT_COUNT = 3; // mug, cocoa beans, milk bottle
 
 var brewingProgress = null; // In-memory only, not saved
 
+// Slot position constants - change these to move slots
+var INGREDIENT_START_X = 37;
+var INGREDIENT_START_Y = -50;
+var INGREDIENT_SPACING = 22;
+var OUTPUT_X = 103;
+var OUTPUT_Y = -30;
+
 function init(event) {
-    event.block.setModel("yuushya:coffee_machine");
+    event.block.setModel("yuushya:lesser_fallen_leaves"); 
+    event.block.setRotation(0,0,0);
 }
 
 function interact(event) {
@@ -93,26 +101,21 @@ function openCoffeeMachineGui(player, api) {
     highlightLineIds = [];
     
     // Create 3 ingredient slots (vertical layout)
-    var startX = 30;
-    var startY = 10;
-    var slotSpacing = 22;
-    
     for(var i = 0; i < INGREDIENT_COUNT; i++){
-        var y = startY + i * slotSpacing;
-        var slot = guiRef.addItemSlot(startX, y);
+        var y = INGREDIENT_START_Y + i * INGREDIENT_SPACING;
+        var slot = guiRef.addItemSlot(INGREDIENT_START_X, y);
         ingredientSlots.push(slot);
     }
     
     // Create output slot on the right
-    outputSlot = guiRef.addItemSlot(100, 32);
+    outputSlot = guiRef.addItemSlot(OUTPUT_X, OUTPUT_Y);
     
     // Labels
-    guiRef.addLabel(1, "§6Coffee Machine", 40, -5, 1.0, 1.0);
-    guiRef.addLabel(2, "§7Ingredients", 10, 32, 0.7, 0.7);
-    guiRef.addLabel(5, "§eCoffee", 95, 52, 0.7, 0.7);
+    guiRef.addLabel(1, "§6Coffee Machine", 43, -75, 1.0, 1.0);
+    guiRef.addLabel(5, "§eCoffee", 94, -48, 0.7, 0.7);
     
     // Show player inventory
-    guiRef.showPlayerInventory(8, 84, false);
+    guiRef.showPlayerInventory(0, 43, false);
     
     // Load items from storage
     loadCoffeeItems(player, api);
@@ -150,6 +153,28 @@ function customGuiClosed(event) {
     guiRef = null;
 }
 
+function drawSlotHighlight(x, y) {
+    // Offset highlight by 1 pixel left and 1 pixel up
+    x = x - 1;
+    y = y - 1;
+    
+    var w = 18, h = 18;
+    
+    // Clear old highlights
+    for(var i = 0; i < highlightLineIds.length; i++){
+        try { guiRef.removeComponent(highlightLineIds[i]); } catch(e) {}
+    }
+    highlightLineIds = [];
+    
+    // Draw new highlight with unique IDs that won't conflict with labels
+    highlightLineIds.push(guiRef.addColoredLine(101, x, y, x+w, y, 0xADD8E6, 2));
+    highlightLineIds.push(guiRef.addColoredLine(102, x, y+h, x+w, y+h, 0xADD8E6, 2));
+    highlightLineIds.push(guiRef.addColoredLine(103, x, y, x, y+h, 0xADD8E6, 2));
+    highlightLineIds.push(guiRef.addColoredLine(104, x+w, y, x+w, y+h, 0xADD8E6, 2));
+    
+    guiRef.update();
+}
+
 function customGuiSlotClicked(event) {
     var clickedSlot = event.slot;
     var stack = event.stack;
@@ -164,47 +189,19 @@ function customGuiSlotClicked(event) {
         // Clicked an ingredient slot
         highlightedSlot = clickedSlot;
         
-        // Clear old highlights
-        for(var i = 0; i < highlightLineIds.length; i++){
-            try { guiRef.removeComponent(highlightLineIds[i]); } catch(e) {}
-        }
-        highlightLineIds = [];
+        // Calculate position based on slot index
+        var x = INGREDIENT_START_X;
+        var y = INGREDIENT_START_Y + slotIndex * INGREDIENT_SPACING;
         
-        // Draw highlight
-        var startX = 30;
-        var startY = 10;
-        var slotSpacing = 22;
-        var x = startX;
-        var y = startY + slotIndex * slotSpacing;
-        var w = 18, h = 18;
-        
-        highlightLineIds.push(guiRef.addColoredLine(1, x, y, x+w, y, 0xADD8E6, 2));
-        highlightLineIds.push(guiRef.addColoredLine(2, x, y+h, x+w, y+h, 0xADD8E6, 2));
-        highlightLineIds.push(guiRef.addColoredLine(3, x, y, x, y+h, 0xADD8E6, 2));
-        highlightLineIds.push(guiRef.addColoredLine(4, x+w, y, x+w, y+h, 0xADD8E6, 2));
-        guiRef.update();
+        drawSlotHighlight(x, y);
         return;
     }
     
     if(isOutputSlot) {
-        // Clicked output slot - only allow taking items
+        // Clicked output slot
         highlightedSlot = clickedSlot;
         
-        // Clear old highlights
-        for(var i = 0; i < highlightLineIds.length; i++){
-            try { guiRef.removeComponent(highlightLineIds[i]); } catch(e) {}
-        }
-        highlightLineIds = [];
-        
-        // Draw highlight (same color as ingredient slots)
-        var x = 100, y = 32;
-        var w = 18, h = 18;
-        
-        highlightLineIds.push(guiRef.addColoredLine(5, x, y, x+w, y, 0xADD8E6, 2));
-        highlightLineIds.push(guiRef.addColoredLine(6, x, y+h, x+w, y+h, 0xADD8E6, 2));
-        highlightLineIds.push(guiRef.addColoredLine(7, x, y, x, y+h, 0xADD8E6, 2));
-        highlightLineIds.push(guiRef.addColoredLine(8, x+w, y, x+w, y+h, 0xADD8E6, 2));
-        guiRef.update();
+        drawSlotHighlight(OUTPUT_X, OUTPUT_Y);
         return;
     }
     
@@ -491,14 +488,15 @@ function timer(event) {
             data.output = coffee.getItemNbt().toJsonString();
         }
         
+        // Save data first
+        saveCoffeeData(block, data);
+        
         // Reset brewing progress to start next batch
         brewingProgress = null;
         
-        // Save and update GUI
-        saveCoffeeData(block, data);
+        // Update GUI
         reloadCoffeeItemsInGui(block, api);
         
-        // Check if we can continue brewing
-        // Timer will continue if ingredients still available
+        // Timer will continue on next tick if ingredients still available
     }
 }
