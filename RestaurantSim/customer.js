@@ -457,6 +457,22 @@ function interact(event){
     var heldItem = player.getMainhandItem();
     
     if(!heldItem || heldItem.isEmpty()){
+        // Build the order message with colored formatting
+        var orderParts = [];
+        for(var i=0; i<orderedItems.length; i++){
+            if(orderedItems[i]){
+                var itemName = orderedItems[i].getDisplayName();
+                var itemCount = orderedItems[i].getStackSize();
+                // §e = yellow for quantity, §a = green for item name
+                orderParts.push("§ex" + itemCount + " §a" + itemName);
+            }
+        }
+        
+        if(orderParts.length > 0){
+            var orderMessage = orderParts.join(" ");
+            npc.say(orderMessage);
+        }
+        
         var gui = api.createCustomGui(102, 180, 0, true, player);
         var label = gui.addLabel(1, "Customer wants:", 46, -50, 150, 12);
         label.setColor(0xFFFFFF);
