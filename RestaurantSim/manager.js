@@ -70,8 +70,8 @@ var chairsList = [];
 
 var MIN_CUSTOMERS = 1;
 var MAX_CUSTOMERS = 6;
-var MIN_SPAWN_INTERVAL = 20;
-var MAX_SPAWN_INTERVAL = 40;
+var MIN_SPAWN_INTERVAL = 80;
+var MAX_SPAWN_INTERVAL = 81;
 var currentCustomerCount = 0;
 var nextSpawnTick = 0;
 
