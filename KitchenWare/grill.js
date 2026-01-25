@@ -100,8 +100,8 @@ function openGrillGui(player, api) {
     highlightLineIds = [];
     
     // Create 3x3 grid of cooking slots (moved up 50 pixels)
-    var startX = 44;
-    var startY = -30; // Was 20, now -30 (moved up 50)
+    var startX = 55;
+    var startY = -45; // Was 20, now -30 (moved up 50)
     var slotSpacing = 18;
     
     for(var row = 0; row < 3; row++){
@@ -114,14 +114,14 @@ function openGrillGui(player, api) {
     }
     
     // Create coal slot below (moved up 50 pixels)
-    coalSlot = guiRef.addItemSlot(62, 40); // Was 90, now 40
+    coalSlot = guiRef.addItemSlot(73, 26); // Was 90, now 40
     
     // Labels (moved up 50 pixels)
-    guiRef.addLabel(1, "§6Grill", 70, -45, 1.2, 1.2); // Was 5, now -45
-    guiRef.addLabel(2, "§7Coal", 48, 43, 0.8, 0.8); // Was 93, now 43
+    guiRef.addLabel(1, "§6Grill", 71, -60, 1.2, 1.2); // Was 5, now -45
+    guiRef.addLabel(2, "§7Coal", 47, 30, 0.8, 0.8); // Was 93, now 43
     
     // Show player inventory (back to original position)
-    guiRef.showPlayerInventory(8, 84, false);
+    guiRef.showPlayerInventory(0, 86, false);
     
     // Load items from storage
     loadGrillItems(player, api);
