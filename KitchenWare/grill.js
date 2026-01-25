@@ -12,7 +12,6 @@ var COOK_TIME = 30; // 30 seconds
 var GRID_SIZE = 9; // 3x3 grid
 
 var cookingProgress = {}; // In-memory only, not saved
-var timerRunning = false;
 
 function init(event) {
     event.block.setModel("farmersdelight:stove");
@@ -23,12 +22,6 @@ function interact(event) {
     var api = event.API;
     lastBlock = event.block;
     
-    // Start cooking timer once
-    if(!timerRunning){
-        event.block.timers.forceStart(1, 20, true); // Every 1 second, repeating
-        timerRunning = true;
-    }
-    
     openGrillGui(player, api);
 }
 
@@ -36,7 +29,7 @@ function getBlockKey(block) {
     return "grill_" + block.getX() + "_" + block.getY() + "_" + block.getZ();
 }
 
-function loadGrillData(block, api) {
+function loadGrillData(block, apiOrWorld) {
     var world = block.getWorld();
     var worldData = world.getStoreddata();
     var blockKey = getBlockKey(block);
@@ -182,8 +175,8 @@ function customGuiSlotClicked(event) {
         // Draw highlight
         var row = Math.floor(slotIndex / 3);
         var col = slotIndex % 3;
-        var startX = 44;
-        var startY = -30;
+        var startX = 55;
+        var startY = -45;
         var slotSpacing = 18;
         var x = startX + col * slotSpacing;
         var y = startY + row * slotSpacing;
@@ -208,7 +201,7 @@ function customGuiSlotClicked(event) {
         highlightLineIds = [];
         
         // Draw highlight
-        var x = 62, y = 40;
+        var x = 73, y = 26;
         var w = 18, h = 18;
         
         highlightLineIds.push(guiRef.addColoredLine(1, x, y, x+w, y, 0xADD8E6, 2));
@@ -284,6 +277,59 @@ function saveGrillItems() {
     }
     
     saveGrillData(lastBlock, data);
+    
+    // Check if we should start or stop the timer
+    checkAndUpdateTimer(lastBlock);
+}
+
+function checkAndUpdateTimer(block) {
+    if(!block) return;
+    
+    var world = block.getWorld();
+    var data = loadGrillData(block, world);
+    var API = Java.type("noppes.npcs.api.NpcAPI").Instance();
+    
+    // Check if there's coal
+    var hasCoal = false;
+    if(data.coal){
+        try {
+            var coalItem = world.createItemFromNbt(API.stringToNbt(data.coal));
+            if(coalItem && !coalItem.isEmpty() && coalItem.getName() === "minecraft:coal"){
+                hasCoal = true;
+            }
+        } catch(e) {}
+    }
+    
+    // Check if there are any uncookable items
+    var hasUncooked = false;
+    for(var i = 0; i < GRID_SIZE; i++){
+        if(data.slots[i]){
+            try {
+                var item = world.createItemFromNbt(API.stringToNbt(data.slots[i]));
+                if(item && !item.isEmpty() && !isCooked(item)){
+                    hasUncooked = true;
+                    break;
+                }
+            } catch(e) {}
+        }
+    }
+    
+    var shouldRun = hasCoal && hasUncooked;
+    
+    if(shouldRun){
+        // Start timer if not already running
+        block.timers.forceStart(1, 20, true); // Every 1 second, repeating
+    } else {
+        // Stop timer and reset progress
+        block.timers.stop(1);
+        
+        // Reset cooking progress for items that won't be cooked
+        if(!hasCoal || !hasUncooked){
+            for(var key in cookingProgress){
+                delete cookingProgress[key];
+            }
+        }
+    }
 }
 
 function timer(event) {
@@ -307,11 +353,18 @@ function timer(event) {
     }
     
     if(!hasCoal){
-        return; // No coal, pause cooking
+        // No coal, stop timer
+        block.timers.stop(1);
+        // Reset all cooking progress
+        for(var key in cookingProgress){
+            delete cookingProgress[key];
+        }
+        return;
     }
     
     var itemsCooked = false;
     var shouldUpdate = false;
+    var hasUncooked = false;
     
     // Check each slot
     for(var i = 0; i < GRID_SIZE; i++){
@@ -322,6 +375,8 @@ function timer(event) {
                 if(item && !item.isEmpty()){
                     // Cook any item that's not already cooked
                     if(!isCooked(item)){
+                        hasUncooked = true;
+                        
                         // Start cooking if not already started
                         if(!cookingProgress[i]){
                             cookingProgress[i] = {
@@ -395,6 +450,16 @@ function timer(event) {
                 delete cookingProgress[i];
             }
         }
+    }
+    
+    // If no more uncooked items, stop timer
+    if(!hasUncooked){
+        block.timers.stop(1);
+        saveGrillData(block, data);
+        if(shouldUpdate){
+            reloadGrillItemsInGui(block, api);
+        }
+        return;
     }
     
     // Consume coal if items were cooked
