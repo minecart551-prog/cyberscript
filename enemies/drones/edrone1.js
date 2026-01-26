@@ -1,11 +1,18 @@
 function init(event) {
     var npc = event.npc;
     npc.getAi().setNavigationType(1);
-    npc.getStats().setMaxHealth(35);
-    npc.getStats().getRanged().setStrength(5);
-    npc.getStats().setRespawnTime(60);
+    npc.getStats().setMaxHealth(27);
+    npc.getStats().getRanged().setStrength(4);
+    npc.getStats().setRespawnTime(1800);
     npc.getStats().getRanged().setDelay(5, 5);
     npc.getStats().getRanged().setBurstDelay(1);
+
+     var tea_leaf = npc.world.createItem("kubejs:tea_leaf", 1);
+     var salt = npc.world.createItem("kubejs:salt", 1);
+
+     npc.getInventory().setDropItem(2, tea_leaf, 20);
+     npc.getInventory().setDropItem(3, salt, 20);
+
 }
 
 function died(event) {
@@ -16,7 +23,7 @@ function died(event) {
 
     // Case 1: Killed by player
     if (killer.getType() == 1) { // 1 = IPlayer
-        var reward = world.createItem("minecraft:emerald", 18);
+        var reward = world.createItem("coins:stone_coin", 20);
         killer.giveItem(reward);
     }
 
