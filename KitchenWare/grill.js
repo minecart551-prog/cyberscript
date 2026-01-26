@@ -216,35 +216,55 @@ function customGuiSlotClicked(event) {
     if(!highlightedSlot) return;
     
     var slotStack = highlightedSlot.getStack();
-    var maxStack = stack ? stack.getMaxStackSize() : 64;
+    var isHighlightedCoal = (highlightedSlot === coalSlot);
     
     if(stack && !stack.isEmpty()) {
         // Player clicked with item in hand
-        if(slotStack && !slotStack.isEmpty() && slotStack.getDisplayName() === stack.getDisplayName()) {
-            // Same item, stack
-            var total = slotStack.getStackSize() + stack.getStackSize();
-            if(total <= maxStack) {
-                slotStack.setStackSize(total);
-                highlightedSlot.setStack(slotStack);
-                player.removeItem(stack, stack.getStackSize());
-            } else {
-                var overflow = total - maxStack;
-                slotStack.setStackSize(maxStack);
-                highlightedSlot.setStack(slotStack);
-                if(overflow > 0){
-                    var overflowItem = player.world.createItemFromNbt(stack.getItemNbt());
-                    overflowItem.setStackSize(overflow);
-                    player.removeItem(stack, stack.getStackSize());
-                    player.giveItem(overflowItem);
+        if(slotStack && !slotStack.isEmpty()) {
+            // Slot already has an item
+            if(slotStack.getDisplayName() === stack.getDisplayName()) {
+                // Same item
+                if(isHighlightedCoal) {
+                    // Coal slot - can stack normally
+                    var maxStack = stack.getMaxStackSize();
+                    var total = slotStack.getStackSize() + stack.getStackSize();
+                    if(total <= maxStack) {
+                        slotStack.setStackSize(total);
+                        highlightedSlot.setStack(slotStack);
+                        player.removeItem(stack, stack.getStackSize());
+                    } else {
+                        var overflow = total - maxStack;
+                        slotStack.setStackSize(maxStack);
+                        highlightedSlot.setStack(slotStack);
+                        if(overflow > 0){
+                            var overflowItem = player.world.createItemFromNbt(stack.getItemNbt());
+                            overflowItem.setStackSize(overflow);
+                            player.removeItem(stack, stack.getStackSize());
+                            player.giveItem(overflowItem);
+                        }
+                    }
+                } else {
+                    // Cooking slot - already has 1 item, can't add more
+                    // Do nothing
                 }
+            } else {
+                // Different item - swap
+                var oldItem = slotStack;
+                player.giveItem(oldItem);
+                
+                var itemCopy = player.world.createItemFromNbt(stack.getItemNbt());
+                var amountToPlace = isHighlightedCoal ? stack.getStackSize() : 1;
+                itemCopy.setStackSize(amountToPlace);
+                highlightedSlot.setStack(itemCopy);
+                player.removeItem(stack, amountToPlace);
             }
         } else {
-            // Different item, swap
+            // Slot is empty - place item
             var itemCopy = player.world.createItemFromNbt(stack.getItemNbt());
-            itemCopy.setStackSize(stack.getStackSize());
-            if(slotStack && !slotStack.isEmpty()) player.giveItem(slotStack);
+            var amountToPlace = isHighlightedCoal ? stack.getStackSize() : 1;
+            itemCopy.setStackSize(amountToPlace);
             highlightedSlot.setStack(itemCopy);
-            player.removeItem(stack, stack.getStackSize());
+            player.removeItem(stack, amountToPlace);
         }
     } else if(slotStack && !slotStack.isEmpty()) {
         // Empty hand, take item
