@@ -154,7 +154,113 @@ function isJobStopped(managerNpc){
     return false;
 }
 
-// Find price for a given food item
+// Compare two items by their full NBT data (excluding dynamic tags)
+function itemsMatch(item1, item2) {
+    if (!item1 || !item2) return false;
+    
+    try {
+        var nbt1 = item1.getItemNbt();
+        var nbt2 = item2.getItemNbt();
+        
+        if (!nbt1 || !nbt2) {
+            // If we can't get NBT, they should only match if same basic item
+            return item1.getName() === item2.getName();
+        }
+        
+        // Convert to JSON strings for comparison
+        var json1 = nbt1.toJsonString();
+        var json2 = nbt2.toJsonString();
+        
+        // Fix NBT JSON - remove type suffixes (d, b, s, f, L) that break JSON parsing
+        json1 = json1.replace(/(\d+)(d|b|s|f|L)\b/g, '$1');
+        json2 = json2.replace(/(\d+)(d|b|s|f|L)\b/g, '$1');
+        
+        // Parse and compare relevant fields
+        var obj1 = JSON.parse(json1);
+        var obj2 = JSON.parse(json2);
+        
+        // Compare item ID
+        if (obj1.id !== obj2.id) {
+            return false;
+        }
+        
+        // Get tag data
+        var tag1 = obj1.tag || {};
+        var tag2 = obj2.tag || {};
+        
+        // Compare display data (name and lore) - this is what matters for menu items
+        var display1 = tag1.display || {};
+        var display2 = tag2.display || {};
+        
+        // Compare custom name if present
+        var name1 = display1.Name || null;
+        var name2 = display2.Name || null;
+        if (name1 !== name2) {
+            return false;
+        }
+        
+        // Compare lore - this is the critical check for "Cooked" etc
+        var lore1 = display1.Lore;
+        var lore2 = display2.Lore;
+        
+        var hasLore1 = (lore1 !== undefined && lore1 !== null);
+        var hasLore2 = (lore2 !== undefined && lore2 !== null);
+        
+        // If one has lore and the other doesn't, they DON'T match
+        if (hasLore1 !== hasLore2) {
+            return false;
+        }
+        
+        // If both have lore, compare the content
+        if (hasLore1 && hasLore2) {
+            var lore1Str = JSON.stringify(lore1);
+            var lore2Str = JSON.stringify(lore2);
+            
+            if (lore1Str !== lore2Str) {
+                return false;
+            }
+        }
+        
+        // NOTE: We intentionally DO NOT compare other tag data like FishLength, durability, etc.
+        // We only care about the display properties (name and lore) for menu matching
+        
+        return true;
+    } catch(e) {
+        // If there's an error, DO NOT fall back to name-only comparison
+        // Return false to be safe
+        return false;
+    }
+}
+
+// Extract lore from an item
+function getLore(item) {
+    var lore = [];
+    try {
+        var nbt = item.getItemNbt();
+        if (nbt && nbt.tag && nbt.tag.display && nbt.tag.display.Lore) {
+            var loreList = nbt.tag.display.Lore;
+            // Handle different NBT formats
+            if (Array.isArray(loreList)) {
+                for (var i = 0; i < loreList.length; i++) {
+                    var line = loreList[i];
+                    // Remove formatting codes and quotes
+                    var cleanLine = String(line).replace(/[§&][0-9a-fk-or]/gi, '').replace(/["']/g, '');
+                    lore.push(cleanLine);
+                }
+            } else if (typeof loreList === 'object') {
+                // Handle NBT compound format
+                for (var key in loreList) {
+                    var line = loreList[key];
+                    var cleanLine = String(line).replace(/[§&][0-9a-fk-or]/gi, '').replace(/["']/g, '');
+                    lore.push(cleanLine);
+                }
+            }
+        }
+    } catch(e) {}
+    return lore;
+}
+
+// Find price for a given food item (with lore matching)
 function findPriceForItem(itemNbtString, api, world, npc) {
     if (!pricingData || Object.keys(pricingData).length === 0) {
         return [];
@@ -168,7 +274,6 @@ function findPriceForItem(itemNbtString, api, world, npc) {
         return [];
     }
     
-    var foodName = foodToMatch.getName();
     var prices = [];
     
     for (var pageKey in pricingData) {
@@ -184,10 +289,9 @@ function findPriceForItem(itemNbtString, api, world, npc) {
             if (foodItem) {
                 try {
                     var pricingFoodItem = world.createItemFromNbt(api.stringToNbt(foodItem));
-                    var pricingFoodName = pricingFoodItem.getName();
                     
-                    // Compare by item name
-                    if (pricingFoodName === foodName) {
+                    // Compare using itemsMatch (includes lore)
+                    if (itemsMatch(pricingFoodItem, foodToMatch)) {
                         if (price1) prices.push(price1);
                         if (price2) prices.push(price2);
                         return prices;
@@ -463,13 +567,22 @@ function interact(event){
             if(orderedItems[i]){
                 var itemName = orderedItems[i].getDisplayName();
                 var itemCount = orderedItems[i].getStackSize();
+                var itemLore = getLore(orderedItems[i]);
+                
                 // §e = yellow for quantity, §a = green for item name
-                orderParts.push("§ex" + itemCount + " §a" + itemName);
+                var displayText = "§ex" + itemCount + " §a" + itemName;
+                
+                // Add lore if present (e.g., "Cooked")
+                if (itemLore.length > 0) {
+                    displayText += " §7[" + itemLore.join(", ") + "]";
+                }
+                
+                orderParts.push(displayText);
             }
         }
         
         if(orderParts.length > 0){
-            var orderMessage = orderParts.join(" ");
+            var orderMessage = orderParts.join("§f, ");
             npc.say(orderMessage);
         }
         
@@ -492,19 +605,23 @@ function interact(event){
         return;
     }
     
-    // Player is holding something - check if it's a needed food item
-    var heldName = heldItem.getName();
+    // Player is holding something - check if it's a needed food item (including lore)
     var matchedIndex = -1;
     
     for(var i=0; i<orderedItems.length; i++){
-        if(orderedItems[i] && orderedItems[i].getName() === heldName){
-            matchedIndex = i;
-            break;
+        if(orderedItems[i]){
+            var matches = itemsMatch(heldItem, orderedItems[i]);
+            if(matches){
+                matchedIndex = i;
+                break;
+            }
         }
     }
     
     if(matchedIndex === -1){
-        player.message("§cThis customer didn't order that item!");
+        var heldLore = getLore(heldItem);
+        var heldInfo = heldItem.getDisplayName() + (heldLore.length > 0 ? " [" + heldLore.join(", ") + "]" : "");
+        player.message("§cThis customer didn't order that item! You gave: " + heldInfo);
         return;
     }
     
@@ -521,7 +638,7 @@ function interact(event){
     
     for(var j=0; j<inv.length && removed < neededAmount; j++){
         var invItem = inv[j];
-        if(invItem && invItem.getName() === heldName){
+        if(invItem && itemsMatch(invItem, orderedItems[matchedIndex])){
             var toRemove = Math.min(neededAmount - removed, invItem.getStackSize());
             invItem.setStackSize(invItem.getStackSize() - toRemove);
             removed += toRemove;
