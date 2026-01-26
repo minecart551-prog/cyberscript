@@ -94,6 +94,7 @@ function buildSlotPositions() {
 
 function loadNpcMenuItems(npc) {
     var data = npc.getStoreddata();
+    // Now loading full NBT data instead of just names
     return data.has("MenuItems") ? JSON.parse(data.get("MenuItems")) : [];
 }
 
@@ -132,12 +133,6 @@ function resetChairRuntime(npc) {
     saveChairList(npc, chairsList);
 }
 
-function stackFromName(name) {
-    var parts = name.split(":");
-    if (parts.length === 2) return parts[0] + ":" + parts[1];
-    return "minecraft:stone";
-}
-
 function parseCoordsString(str) {
     if (!str) return null;
     var p = str.split(/[ ,]+/);
@@ -152,19 +147,19 @@ function getRandomSpawnInterval() {
 }
 
 function saveNpcMenuItems(npc, player) {
-    var names = mySlots.map(function(slot) {
+    // Save full NBT data including lore
+    var itemsNbt = mySlots.map(function(slot) {
         var stack = slot.getStack();
         if (stack && !stack.isEmpty()) {
-            var nbt = stack.getItemNbt();
-            if (nbt && nbt.tag && nbt.tag.display && nbt.tag.display.Name) {
-                return nbt.tag.display.Name.replace(/["']/g, "");
-            } else {
-                return stack.getName();
+            try {
+                return stack.getItemNbt().toJsonString();
+            } catch(e) {
+                return null;
             }
         }
         return null;
     });
-    npc.getStoreddata().put("MenuItems", JSON.stringify(names));
+    npc.getStoreddata().put("MenuItems", JSON.stringify(itemsNbt));
 
     var highlightedNbt = [];
     var sel = null;
@@ -230,8 +225,9 @@ function openAdminMenuGui(player, api) {
         var slot = guiRef.addItemSlot(pos.x, pos.y);
         if (storedSlotItems[i]) {
             try {
-                var dummy = player.world.createItem(stackFromName(storedSlotItems[i]), 1);
-                slot.setStack(dummy);
+                // Create item from full NBT data including lore
+                var item = player.world.createItemFromNbt(api.stringToNbt(storedSlotItems[i]));
+                slot.setStack(item);
             } catch(e) {}
         }
         mySlots.push(slot);
@@ -263,8 +259,9 @@ function renderPlayerGui(player, api) {
         var slot = guiRef.addItemSlot(pos.x, pos.y);
         if (storedSlotItems[i]) {
             try {
-                var dummy = player.world.createItem(stackFromName(storedSlotItems[i]), 1);
-                slot.setStack(dummy);
+                // Create item from full NBT data including lore
+                var item = player.world.createItemFromNbt(api.stringToNbt(storedSlotItems[i]));
+                slot.setStack(item);
             } catch(e) {}
         }
         mySlots.push(slot);
