@@ -6,7 +6,7 @@ var scanRadius = 30;
 var orderPlaced = false;
 
 var orderedItems = [];
-var orderedPrices = []; // Store prices for ordered items
+var orderedPrices = [];
 var assignedChair = null;
 var chairReached = false;
 var spawnPos = null;
@@ -14,10 +14,13 @@ var guiClosed = false;
 var initialized = false;
 var returningToSpawn = false;
 var myChairIndex = -1;
-var pricingData = {};
 var paymentReceived = false;
 var paymentCheckTicks = 0;
-var pricingDataLoaded = false; // Track if we've loaded pricing data
+var globalMenuData = {};
+
+// Currency conversion rates
+var STONE_TO_COAL = 100;
+var COAL_TO_EMERALD = 100;
 
 function parseCoords(str){
     if(!str) return null;
@@ -94,7 +97,6 @@ function tryClaimChair(npc, managerNpc){
             
             managerData.put("ChairList", JSON.stringify(chairsList));
             
-            // Increment customer count when claiming chair
             var currentCount = 0;
             try {
                 if(managerData.has("CurrentCustomerCount")){
@@ -154,7 +156,6 @@ function isJobStopped(managerNpc){
     return false;
 }
 
-// Compare two items by their full NBT data (excluding dynamic tags)
 function itemsMatch(item1, item2) {
     if (!item1 || !item2) return false;
     
@@ -163,94 +164,142 @@ function itemsMatch(item1, item2) {
         var nbt2 = item2.getItemNbt();
         
         if (!nbt1 || !nbt2) {
-            // If we can't get NBT, they should only match if same basic item
             return item1.getName() === item2.getName();
         }
         
-        // Convert to JSON strings for comparison
         var json1 = nbt1.toJsonString();
         var json2 = nbt2.toJsonString();
         
-        // Fix NBT JSON - remove type suffixes (d, b, s, f, L) that break JSON parsing
         json1 = json1.replace(/(\d+)(d|b|s|f|L)\b/g, '$1');
         json2 = json2.replace(/(\d+)(d|b|s|f|L)\b/g, '$1');
         
-        // Parse and compare relevant fields
         var obj1 = JSON.parse(json1);
         var obj2 = JSON.parse(json2);
         
-        // Compare item ID
         if (obj1.id !== obj2.id) {
             return false;
         }
         
-        // Get tag data
         var tag1 = obj1.tag || {};
         var tag2 = obj2.tag || {};
         
-        // Compare display data (name and lore) - this is what matters for menu items
         var display1 = tag1.display || {};
         var display2 = tag2.display || {};
         
-        // Compare custom name if present
         var name1 = display1.Name || null;
         var name2 = display2.Name || null;
         if (name1 !== name2) {
             return false;
         }
         
-        // Compare lore - this is the critical check for "Cooked" etc
         var lore1 = display1.Lore;
         var lore2 = display2.Lore;
         
-        var hasLore1 = (lore1 !== undefined && lore1 !== null);
-        var hasLore2 = (lore2 !== undefined && lore2 !== null);
+        // Clean lore first to check if there's any non-price lore
+        var lore1Clean = [];
+        var lore2Clean = [];
         
-        // If one has lore and the other doesn't, they DON'T match
+        if (lore1 && Array.isArray(lore1)) {
+            for (var i = 0; i < lore1.length; i++) {
+                var line = String(lore1[i]);
+                
+                // CustomNPCs may use {"translate":"text"} format
+                try {
+                    var loreJson = JSON.parse(line);
+                    if(loreJson.translate){
+                        line = loreJson.translate;
+                    }
+                } catch(e) {
+                    // Not JSON, use as-is
+                }
+                
+                // Only keep non-empty, non-price lore
+                if (line && line.trim() !== "" && line.indexOf("Price:") === -1) {
+                    lore1Clean.push(line);
+                }
+            }
+        }
+        
+        if (lore2 && Array.isArray(lore2)) {
+            for (var i = 0; i < lore2.length; i++) {
+                var line = String(lore2[i]);
+                
+                // CustomNPCs may use {"translate":"text"} format
+                try {
+                    var loreJson = JSON.parse(line);
+                    if(loreJson.translate){
+                        line = loreJson.translate;
+                    }
+                } catch(e) {
+                    // Not JSON, use as-is
+                }
+                
+                // Only keep non-empty, non-price lore
+                if (line && line.trim() !== "" && line.indexOf("Price:") === -1) {
+                    lore2Clean.push(line);
+                }
+            }
+        }
+        
+        var hasLore1 = lore1Clean.length > 0;
+        var hasLore2 = lore2Clean.length > 0;
+        
         if (hasLore1 !== hasLore2) {
             return false;
         }
         
-        // If both have lore, compare the content
         if (hasLore1 && hasLore2) {
-            var lore1Str = JSON.stringify(lore1);
-            var lore2Str = JSON.stringify(lore2);
+            var lore1Str = JSON.stringify(lore1Clean);
+            var lore2Str = JSON.stringify(lore2Clean);
             
             if (lore1Str !== lore2Str) {
                 return false;
             }
         }
         
-        // NOTE: We intentionally DO NOT compare other tag data like FishLength, durability, etc.
-        // We only care about the display properties (name and lore) for menu matching
-        
         return true;
     } catch(e) {
-        // If there's an error, DO NOT fall back to name-only comparison
-        // Return false to be safe
         return false;
     }
 }
 
-// Extract lore from an item
 function getLore(item) {
     var lore = [];
     try {
         var nbt = item.getItemNbt();
         if (nbt && nbt.tag && nbt.tag.display && nbt.tag.display.Lore) {
             var loreList = nbt.tag.display.Lore;
-            // Handle different NBT formats
             if (Array.isArray(loreList)) {
                 for (var i = 0; i < loreList.length; i++) {
                     var line = loreList[i];
-                    // Remove formatting codes and quotes
+                    
+                    // CustomNPCs may use {"translate":"text"} format
+                    try {
+                        var loreJson = JSON.parse(String(line));
+                        if(loreJson.translate){
+                            line = loreJson.translate;
+                        }
+                    } catch(e) {
+                        // Not JSON, use as-is
+                    }
+                    
                     var cleanLine = String(line).replace(/[§&][0-9a-fk-or]/gi, '').replace(/["']/g, '');
                     lore.push(cleanLine);
                 }
             } else if (typeof loreList === 'object') {
-                // Handle NBT compound format
                 for (var key in loreList) {
                     var line = loreList[key];
+                    
+                    // CustomNPCs may use {"translate":"text"} format
+                    try {
+                        var loreJson = JSON.parse(String(line));
+                        if(loreJson.translate){
+                            line = loreJson.translate;
+                        }
+                    } catch(e) {
+                        // Not JSON, use as-is
+                    }
+                    
                     var cleanLine = String(line).replace(/[§&][0-9a-fk-or]/gi, '').replace(/["']/g, '');
                     lore.push(cleanLine);
                 }
@@ -260,81 +309,34 @@ function getLore(item) {
     return lore;
 }
 
-// Find price for a given food item (with lore matching)
-function findPriceForItem(itemNbtString, api, world, npc) {
-    if (!pricingData || Object.keys(pricingData).length === 0) {
-        return [];
+function findPriceForItem(itemNbtString, api, world) {
+    if (!globalMenuData || Object.keys(globalMenuData).length === 0) {
+        return null;
     }
     
-    // Get the food item to compare
     var foodToMatch;
     try {
         foodToMatch = world.createItemFromNbt(api.stringToNbt(itemNbtString));
     } catch(e) {
-        return [];
+        return null;
     }
     
-    var prices = [];
-    
-    for (var pageKey in pricingData) {
-        var pageData = pricingData[pageKey];
-        if (!Array.isArray(pageData)) continue;
+    for (var key in globalMenuData) {
+        if (!globalMenuData.hasOwnProperty(key)) continue;
         
-        // Loop through every 3 slots (food, price1, price2)
-        for (var i = 0; i < pageData.length; i += 3) {
-            var foodItem = pageData[i];
-            var price1 = pageData[i + 1];
-            var price2 = pageData[i + 2];
+        var entry = globalMenuData[key];
+        if (!entry || !entry.item) continue;
+        
+        try {
+            var menuItem = world.createItemFromNbt(api.stringToNbt(entry.item));
             
-            if (foodItem) {
-                try {
-                    var pricingFoodItem = world.createItemFromNbt(api.stringToNbt(foodItem));
-                    
-                    // Compare using itemsMatch (includes lore)
-                    if (itemsMatch(pricingFoodItem, foodToMatch)) {
-                        if (price1) prices.push(price1);
-                        if (price2) prices.push(price2);
-                        return prices;
-                    }
-                } catch(e) {}
+            if (itemsMatch(menuItem, foodToMatch)) {
+                return entry.price;
             }
-        }
+        } catch(e) {}
     }
     
-    return prices;
-}
-
-// Build a nice price string from payment items
-function buildPriceString(api, world) {
-    var priceMap = {}; // Map item names to total quantities
-    
-    for(var i = 0; i < orderedPrices.length; i++){
-        var priceArray = orderedPrices[i];
-        for(var j = 0; j < priceArray.length; j++){
-            try {
-                var priceItem = world.createItemFromNbt(api.stringToNbt(priceArray[j]));
-                var itemName = priceItem.getDisplayName();
-                var itemCount = priceItem.getStackSize();
-                
-                if(!priceMap[itemName]){
-                    priceMap[itemName] = 0;
-                }
-                priceMap[itemName] += itemCount;
-            } catch(e) {}
-        }
-    }
-    
-    var priceStrings = [];
-    for(var itemName in priceMap){
-        priceStrings.push(priceMap[itemName] + " " + itemName);
-    }
-    
-    if(priceStrings.length === 0) return "free";
-    if(priceStrings.length === 1) return priceStrings[0];
-    
-    // Join with "and" for the last item
-    var lastItem = priceStrings.pop();
-    return priceStrings.join(", ") + " and " + lastItem;
+    return null;
 }
 
 function tick(event){
@@ -347,22 +349,14 @@ function tick(event){
         initialized = true;
     }
     
-    // Load pricing data from own stored data (set by manager during spawn)
-    // Keep checking until we have it
-    var hasPricingData = pricingData && Object.keys(pricingData).length > 0;
-    
-    if(!pricingDataLoaded && !hasPricingData){
-        var selfData = npc.getStoreddata();
-        if(selfData.has("PricingData")){
+    // Load global menu data from world storage
+    if(Object.keys(globalMenuData).length === 0){
+        var worldData = world.getStoreddata();
+        if(worldData.has("GlobalMenuData")){
             try{
-                var rawData = selfData.get("PricingData");
-                pricingData = JSON.parse(rawData);
-                var pageCount = Object.keys(pricingData).length;
-                if(pageCount > 0){
-                    pricingDataLoaded = true;
-                }
+                globalMenuData = JSON.parse(worldData.get("GlobalMenuData"));
             }catch(e){
-                pricingData = {};
+                globalMenuData = {};
             }
         }
     }
@@ -395,8 +389,7 @@ function tick(event){
     }
 
     if(managerNpc && isJobStopped(managerNpc)){
-        // Reset animation when leaving
-        npc.getAi().setAnimation(0); // NORMAL animation
+        npc.getAi().setAnimation(0);
         returningToSpawn = true;
         assignedChair = null;
         chairReached = false;
@@ -413,15 +406,13 @@ function tick(event){
     }
 
     if(assignedChair && chairReached && isMyChairExpired(npc, managerNpc)){
-        // Reset animation when leaving chair
-        npc.getAi().setAnimation(0); // NORMAL animation
+        npc.getAi().setAnimation(0);
         returningToSpawn = true;
         assignedChair = null;
         chairReached = false;
         myChairIndex = -1;
     }
 
-    // Check if payment was received
     if(assignedChair && chairReached && !paymentReceived){
         paymentCheckTicks++;
         try{
@@ -430,14 +421,11 @@ function tick(event){
                 paymentReceived = true;
                 selfData.put("PaymentReceived", "false");
                 
-                // Reset animation and leave
-                npc.getAi().setAnimation(0); // NORMAL animation
+                npc.getAi().setAnimation(0);
                 returningToSpawn = true;
                 npc.say("Thank you!");
             }
         }catch(e){}
-        
-
     }
 
     if(returningToSpawn){
@@ -472,8 +460,7 @@ function tick(event){
 
         if(distSq < 1.0){
             chairReached = true;
-            // Set sitting animation when reaching the chair
-            npc.getAi().setAnimation(1); // SIT animation (value 3)
+            npc.getAi().setAnimation(1);
         }
         return;
     }
@@ -498,15 +485,13 @@ function tick(event){
         if(dx*dx + dy*dy + dz*dz < 4){
             orderPlaced = true;
             
-            // Load pricing data from MANAGER at counter
-            if(managerNpc){
-                var managerData = managerNpc.getStoreddata();
-                if(managerData.has("PricingItems")){
-                    try{
-                        pricingData = JSON.parse(managerData.get("PricingItems"));
-                    }catch(e){
-                        pricingData = {};
-                    }
+            // Reload global menu data at counter
+            var worldData = world.getStoreddata();
+            if(worldData.has("GlobalMenuData")){
+                try{
+                    globalMenuData = JSON.parse(worldData.get("GlobalMenuData"));
+                }catch(e){
+                    globalMenuData = {};
                 }
             }
 
@@ -514,7 +499,7 @@ function tick(event){
                 orderedItems = [];
                 orderedPrices = [];
                 
-                var hasPricing = pricingData && Object.keys(pricingData).length > 0;
+                var hasPricing = globalMenuData && Object.keys(globalMenuData).length > 0;
                 if(!hasPricing){
                     npc.say("Warning: No pricing data loaded yet!");
                 }
@@ -532,9 +517,9 @@ function tick(event){
                     var item = world.createItemFromNbt(nbt);
                     orderedItems.push(item);
                     
-                    // Find prices for this item
-                    var itemPrices = findPriceForItem(entry, api, world, npc);
-                    orderedPrices.push(itemPrices);
+                    // Find price for this item from global data
+                    var itemPrice = findPriceForItem(entry, api, world);
+                    orderedPrices.push(itemPrice);
                 }
             }
         }
@@ -545,36 +530,65 @@ function interact(event){
     var player = event.player;
     var api = event.API;
     var npc = event.npc;
+    var world = npc.getWorld();
 
     if(orderedItems.length === 0){
         player.message("This customer hasn't ordered yet.");
         return;
     }
     
-    // Check if payment already received
     if(paymentReceived){
         player.message("This customer has already paid.");
         return;
     }
     
-    // Check what player is holding
     var heldItem = player.getMainhandItem();
     
     if(!heldItem || heldItem.isEmpty()){
-        // Build the order message with colored formatting
-        var orderParts = [];
+        // Group identical items together
+        var itemGroups = {}; // Key: itemName + lore, Value: {name, lore, totalCount, price}
+        
         for(var i=0; i<orderedItems.length; i++){
             if(orderedItems[i]){
                 var itemName = orderedItems[i].getDisplayName();
                 var itemCount = orderedItems[i].getStackSize();
                 var itemLore = getLore(orderedItems[i]);
+                var itemPrice = orderedPrices[i];
                 
-                // §e = yellow for quantity, §a = green for item name
-                var displayText = "§ex" + itemCount + " §a" + itemName;
+                // Create unique key based on name and lore (not price)
+                var loreKey = itemLore.join("|");
+                var groupKey = itemName + "||" + loreKey;
                 
-                // Add lore if present (e.g., "Cooked")
-                if (itemLore.length > 0) {
-                    displayText += " §7[" + itemLore.join(", ") + "]";
+                if(!itemGroups[groupKey]){
+                    itemGroups[groupKey] = {
+                        name: itemName,
+                        lore: itemLore,
+                        totalCount: 0,
+                        totalPrice: 0
+                    };
+                }
+                
+                itemGroups[groupKey].totalCount += itemCount;
+                if(itemPrice !== null && itemPrice !== undefined){
+                    itemGroups[groupKey].totalPrice += itemPrice * itemCount;
+                }
+            }
+        }
+        
+        // Build display message
+        var orderParts = [];
+        for(var key in itemGroups){
+            if(itemGroups.hasOwnProperty(key)){
+                var group = itemGroups[key];
+                var displayText = "§ex" + group.totalCount + " §a" + group.name;
+                
+                if (group.lore.length > 0) {
+                    displayText += " §7[" + group.lore.join(", ") + "]";
+                }
+                
+                // Add total price for this group
+                if(group.totalPrice > 0){
+                    displayText += " §e(" + group.totalPrice + "¢)";
                 }
                 
                 orderParts.push(displayText);
@@ -605,7 +619,6 @@ function interact(event){
         return;
     }
     
-    // Player is holding something - check if it's a needed food item (including lore)
     var matchedIndex = -1;
     
     for(var i=0; i<orderedItems.length; i++){
@@ -625,13 +638,11 @@ function interact(event){
         return;
     }
     
-    // Check if this item was already delivered
     if(!orderedItems[matchedIndex]){
         player.message("§cYou already gave this item!");
         return;
     }
     
-    // Take the item from player
     var neededAmount = orderedItems[matchedIndex].getStackSize();
     var inv = player.getInventory().getItems();
     var removed = 0;
@@ -650,11 +661,9 @@ function interact(event){
         return;
     }
     
-    // Mark this item as delivered
     orderedItems[matchedIndex] = null;
     player.message("§aItem delivered!");
     
-    // Check if ALL items are now delivered
     var allDelivered = true;
     for(var i=0; i<orderedItems.length; i++){
         if(orderedItems[i]){
@@ -664,20 +673,41 @@ function interact(event){
     }
     
     if(allDelivered){
-        // All food delivered! Give payment
+        // Calculate total coins and give payment
+        var totalCoins = 0;
         for(var i=0; i<orderedPrices.length; i++){
-            var priceArray = orderedPrices[i];
-            for(var j=0; j<priceArray.length; j++){
-                try {
-                    var paymentItem = player.world.createItemFromNbt(api.stringToNbt(priceArray[j]));
-                    player.giveItem(paymentItem);
-                } catch(e) {}
+            if(orderedPrices[i] !== null && orderedPrices[i] !== undefined){
+                totalCoins += orderedPrices[i];
             }
+        }
+        
+        if(totalCoins > 0){
+            // Give coins to player
+            var emeralds = Math.floor(totalCoins / (STONE_TO_COAL * COAL_TO_EMERALD));
+            var remaining = totalCoins % (STONE_TO_COAL * COAL_TO_EMERALD);
+            var coals = Math.floor(remaining / STONE_TO_COAL);
+            var stones = remaining % STONE_TO_COAL;
+            
+            if(emeralds > 0){
+                var emeraldItem = player.world.createItem("coins:emerald_coin", emeralds);
+                player.giveItem(emeraldItem);
+            }
+            if(coals > 0){
+                var coalItem = player.world.createItem("coins:coal_coin", coals);
+                player.giveItem(coalItem);
+            }
+            if(stones > 0){
+                var stoneItem = player.world.createItem("coins:stone_coin", stones);
+                player.giveItem(stoneItem);
+            }
+            
+            player.message("§aPayment received: §e" + totalCoins + "¢");
+        } else {
+            player.message("§aTransaction complete! (No price set)");
         }
         
         paymentReceived = true;
         npc.getStoreddata().put("PaymentReceived", "true");
-        player.message("§aTransaction complete!");
         npc.say("Thank you!");
     }
 }
