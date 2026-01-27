@@ -8,11 +8,6 @@ var ID_FIELD_SPAWN = 22;
 var ID_FIELD_COUNTER = 23;
 var ID_LABEL_CHAIRS = 24;
 var ID_FIELD_CHAIRS = 25;
-var ID_NEXT_PAGE_BUTTON = 30;
-var ID_PREV_PAGE_BUTTON = 31;
-var ID_CREATE_PAGE_BUTTON = 32;
-var ID_MENU_SETUP_BUTTON = 33;
-var ID_PRICING_SETUP_BUTTON = 34;
 
 var SECTIONS = [
     { name: "Drinks", startX: -120, startY: -60, rows: 6, columns: 4, slotSpacingX: 20, slotSpacingY: 20 },
@@ -20,27 +15,6 @@ var SECTIONS = [
 ];
 
 var scanRange = 30;
-var pricingSlotPositions = [];
-var pricingStartX = -105;
-var pricingStartY = -116;
-var pricingRowSpacing = 20.5;
-var pricingColSpacing = 79;
-var pricingNumRows = 10;
-var pricingNumCols = 5;
-var foodItemOffsetX = 0;
-var price1OffsetX = 24;
-var price2OffsetX = 42;
-
-for (var col = 0; col < pricingNumCols; col++) {
-    var colOffsetX = pricingStartX + col * pricingColSpacing;
-    for (var row = 0; row < pricingNumRows; row++) {
-        var y = pricingStartY + row * pricingRowSpacing;
-        pricingSlotPositions.push({x: colOffsetX + foodItemOffsetX, y: y});
-        pricingSlotPositions.push({x: colOffsetX + price1OffsetX, y: y});
-        pricingSlotPositions.push({x: colOffsetX + price2OffsetX, y: y});
-    }
-}
-
 var mySlots = [];
 var slotPositions = [];
 var selectedSlots = [];
@@ -53,15 +27,6 @@ var storedSlotItems = [];
 var isAdminGui = false;
 var nextLineId = 1000;
 var slotPositionsBuilt = false;
-
-var currentPricingPage = 0;
-var maxPricingPages = 6;
-var storedPricingItems = {};
-var pricingSlots = [];
-var pricingHighlightedSlot = null;
-var pricingHighlightLines = [];
-
-var viewMode = "menu";
 
 var CHAIR_FREE_TICKS = 200;
 var managerJobActive = false;
@@ -94,7 +59,6 @@ function buildSlotPositions() {
 
 function loadNpcMenuItems(npc) {
     var data = npc.getStoreddata();
-    // Now loading full NBT data instead of just names
     return data.has("MenuItems") ? JSON.parse(data.get("MenuItems")) : [];
 }
 
@@ -147,7 +111,6 @@ function getRandomSpawnInterval() {
 }
 
 function saveNpcMenuItems(npc, player) {
-    // Save full NBT data including lore
     var itemsNbt = mySlots.map(function(slot) {
         var stack = slot.getStack();
         if (stack && !stack.isEmpty()) {
@@ -194,7 +157,6 @@ function saveNpcMenuItems(npc, player) {
 }
 
 function openAdminMenuGui(player, api) {
-    viewMode = "menu";
     isAdminGui = true;
     highlightedAdminSlot = null;
     adminHighlightLines = [];
@@ -217,16 +179,21 @@ function openAdminMenuGui(player, api) {
     guiRef.addLabel(ID_LABEL_CHAIRS, "Chairs (x y z, x y z, ...)", 5, 18, 156, 16).setColor(0xFFFFFF);
     guiRef.addTextField(ID_FIELD_CHAIRS, 5, 33, 156, 18).setText(chairsText).setColor(0xFFFFFF);
 
-    guiRef.addButton(ID_PRICING_SETUP_BUTTON, "Pricing Setup", 202, 70, 80, 20);
-
     mySlots = [];
     for (var i = 0; i < slotPositions.length; i++) {
         var pos = slotPositions[i];
         var slot = guiRef.addItemSlot(pos.x, pos.y);
         if (storedSlotItems[i]) {
             try {
-                // Create item from full NBT data including lore
                 var item = player.world.createItemFromNbt(api.stringToNbt(storedSlotItems[i]));
+                
+                // Check if item has price in global menu and add/update lore
+                var world = player.getWorld();
+                var price = findPriceInGlobalMenu(item, world, api, null); // null = no debug messages here
+                if (price) {
+                    item = addPriceLoreToItem(item, price);
+                }
+                
                 slot.setStack(item);
             } catch(e) {}
         }
@@ -238,7 +205,6 @@ function openAdminMenuGui(player, api) {
 }
 
 function openPlayerGui(player, api) {
-    viewMode = "menu";
     isAdminGui = false;
     buildSlotPositions();
     storedSlotItems = loadNpcMenuItems(lastNpc);
@@ -251,15 +217,14 @@ function renderPlayerGui(player, api) {
     guiRef.addLabel(ID_JOB_LABEL, "Restaurant Menu", 40, -110, 156, 12).setColor(0xFFFFFF);
 
     mySlots = [];
-    slotHighlights = {}; // Reset highlights for new GUI
-    nextLineId = 1000; // Reset line ID counter
+    slotHighlights = {};
+    nextLineId = 1000;
 
     for (var i = 0; i < slotPositions.length; i++) {
         var pos = slotPositions[i];
         var slot = guiRef.addItemSlot(pos.x, pos.y);
         if (storedSlotItems[i]) {
             try {
-                // Create item from full NBT data including lore
                 var item = player.world.createItemFromNbt(api.stringToNbt(storedSlotItems[i]));
                 slot.setStack(item);
             } catch(e) {}
@@ -267,7 +232,6 @@ function renderPlayerGui(player, api) {
         mySlots.push(slot);
     }
 
-    // Draw highlights for selected slots
     selectedSlots.forEach(function(idx) {
         if (idx >= 0 && idx < mySlots.length) drawHighlight(idx);
     });
@@ -280,14 +244,11 @@ function renderPlayerGui(player, api) {
 }
 
 function drawHighlight(index) {
-    // Don't draw if GUI not available
     if (!guiRef) return;
-    
-    // Check if already highlighted in the current slotHighlights object
     if (slotHighlights[index]) return;
     
     var pos = slotPositions[index];
-    if (!pos) return; // Safety check
+    if (!pos) return;
     
     var x = pos.x, y = pos.y, w = 18, h = 18;
     slotHighlights[index] = [
@@ -303,87 +264,13 @@ function toggleHighlight(index, player) {
     
     var pos = selectedSlots.indexOf(index);
     if (pos !== -1) {
-        // Slot already selected - do nothing (don't remove)
         return;
     }
     
-    // Add to selectedSlots and draw highlight
     selectedSlots.push(index);
     player.getStoreddata().put("SelectedMenuSlots", JSON.stringify(selectedSlots));
     drawHighlight(index);
     if (guiRef) guiRef.update();
-}
-
-function openPricingGui(player, api) {
-    viewMode = "pricing";
-    isAdminGui = true;
-    
-    var npcData = lastNpc.getStoreddata();
-    storedPricingItems = npcData.has("PricingItems") ? JSON.parse(npcData.get("PricingItems")) : {};
-    
-    if (!storedPricingItems[currentPricingPage]) {
-        storedPricingItems[currentPricingPage] = makeNullArray(pricingSlotPositions.length);
-    }
-    
-    pricingHighlightedSlot = null;
-    pricingHighlightLines = [];
-    
-    guiRef = api.createCustomGui(176, 166, 0, true, player);
-    
-    guiRef.addLabel(ID_JOB_LABEL, "Menu Pricing Setup - Page " + (currentPricingPage + 1), 11, -129, 200, 12).setColor(0xFFFFFF);
-    
-    guiRef.addButton(ID_NEXT_PAGE_BUTTON, "Next", 284, -30, 35, 19);
-    guiRef.addButton(ID_PREV_PAGE_BUTTON, "Back", -153, -30, 35, 19);
-    guiRef.addButton(ID_CREATE_PAGE_BUTTON, "Create", 284, -60, 35, 19);
-    guiRef.addButton(ID_MENU_SETUP_BUTTON, "<< Menu Setup", 190, 90, 80, 20);
-    
-    pricingSlots = pricingSlotPositions.map(function(pos) {
-        return guiRef.addItemSlot(pos.x, pos.y);
-    });
-    
-    for (var i = 0; i < pricingSlots.length; i++) {
-        pricingSlots[i].setStack(null);
-        if (storedPricingItems[currentPricingPage][i]) {
-            try {
-                var item = player.world.createItemFromNbt(api.stringToNbt(storedPricingItems[currentPricingPage][i]));
-                pricingSlots[i].setStack(item);
-            } catch(e) {}
-        }
-    }
-    
-    guiRef.showPlayerInventory(0, 93, false);
-    player.showCustomGui(guiRef);
-}
-
-function savePricingPageItems() {
-    if (!lastNpc) return;
-    var npcData = lastNpc.getStoreddata();
-    
-    storedPricingItems[currentPricingPage] = pricingSlots.map(function(slot) {
-        var stack = slot.getStack();
-        return stack && !stack.isEmpty() ? stack.getItemNbt().toJsonString() : null;
-    });
-    
-    npcData.put("PricingItems", JSON.stringify(storedPricingItems));
-}
-
-function drawPricingHighlight(gui, x, y) {
-    if (!gui) return;
-    
-    var w = 18, h = 18;
-    gui.addColoredLine(5001, x, y, x + w, y, 0xADD8E6, 2);
-    gui.addColoredLine(5002, x, y + h, x + w, y + h, 0xADD8E6, 2);
-    gui.addColoredLine(5003, x, y, x, y + h, 0xADD8E6, 2);
-    gui.addColoredLine(5004, x + w, y, x + w, y + h, 0xADD8E6, 2);
-    pricingHighlightLines = [5001, 5002, 5003, 5004];
-}
-
-function clearPricingHighlight(gui) {
-    if (!gui) return;
-    pricingHighlightLines.forEach(function(id) {
-        try { gui.removeComponent(id); } catch(e) {}
-    });
-    pricingHighlightLines = [];
 }
 
 function drawAdminHighlight(gui, x, y) {
@@ -445,8 +332,6 @@ function spawnCustomerCloneAtManager(npc, api) {
     if (!counter) counter = { x: npc.getX ? npc.getX() : spawn.x, y: npc.getY ? npc.getY() : spawn.y, z: npc.getZ ? npc.getZ() : spawn.z };
     var counterJson = JSON.stringify(counter);
 
-    var pricingData = npcData.has("PricingItems") ? npcData.get("PricingItems") : "{}";
-
     for (var i = 0; i < nearby.length; i++) {
         var ent = nearby[i]; 
         try {
@@ -459,15 +344,10 @@ function spawnCustomerCloneAtManager(npc, api) {
             if (!isAlreadyInitialized) {
                 eData.put("RestaurantMenu", JSON.stringify(menu));
                 eData.put("CounterPos", counterJson);
-                eData.put("PricingData", pricingData);
                 eData.put("InitializedByManager", "true");
                 break;
-            } else {
-                eData.put("PricingData", pricingData);
             }
-            
-        } catch(e) {
-        }
+        } catch(e) {}
     }
 }
 
@@ -484,30 +364,246 @@ function interact(event) {
     else openPlayerGui(player, api);
 }
 
+function itemsMatch(item1, item2, player) {
+    if (!item1 || !item2) {
+        if(player) player.message("§c[Debug Match] One item is null");
+        return false;
+    }
+    
+    try {
+        var nbt1 = item1.getItemNbt();
+        var nbt2 = item2.getItemNbt();
+        
+        if (!nbt1 || !nbt2) {
+            var match = item1.getName() === item2.getName();
+            if(player) player.message("§7[Debug Match] No NBT, name match: " + match);
+            return match;
+        }
+        
+        var json1 = nbt1.toJsonString();
+        var json2 = nbt2.toJsonString();
+        
+        json1 = json1.replace(/(\d+)(d|b|s|f|L)\b/g, '$1');
+        json2 = json2.replace(/(\d+)(d|b|s|f|L)\b/g, '$1');
+        
+        var obj1 = JSON.parse(json1);
+        var obj2 = JSON.parse(json2);
+        
+        if (obj1.id !== obj2.id) {
+            if(player) player.message("§c[Debug Match] Different IDs: " + obj1.id + " vs " + obj2.id);
+            return false;
+        }
+        
+        if(player) player.message("§a[Debug Match] Same ID: " + obj1.id);
+        
+        var tag1 = obj1.tag || {};
+        var tag2 = obj2.tag || {};
+        
+        var display1 = tag1.display || {};
+        var display2 = tag2.display || {};
+        
+        var name1 = display1.Name || null;
+        var name2 = display2.Name || null;
+        
+        if(player && name1) player.message("§7[Debug Match] Item1 name: " + name1);
+        if(player && name2) player.message("§7[Debug Match] Item2 name: " + name2);
+        
+        if (name1 !== name2) {
+            if(player) player.message("§c[Debug Match] Different custom names");
+            return false;
+        }
+        
+        var lore1 = display1.Lore;
+        var lore2 = display2.Lore;
+        
+        // Clean lore first to check if there's any non-price lore
+        var lore1Clean = [];
+        var lore2Clean = [];
+        
+        if (lore1 && Array.isArray(lore1)) {
+            for (var i = 0; i < lore1.length; i++) {
+                var line = String(lore1[i]);
+                
+                // CustomNPCs may use {"translate":"text"} format
+                try {
+                    var loreJson = JSON.parse(line);
+                    if(loreJson.translate){
+                        line = loreJson.translate;
+                    }
+                } catch(e) {
+                    // Not JSON, use as-is
+                }
+                
+                // Only keep non-empty, non-price lore
+                if (line && line.trim() !== "" && line.indexOf("Price:") === -1) {
+                    lore1Clean.push(line);
+                }
+            }
+        }
+        
+        if (lore2 && Array.isArray(lore2)) {
+            for (var i = 0; i < lore2.length; i++) {
+                var line = String(lore2[i]);
+                
+                // CustomNPCs may use {"translate":"text"} format
+                try {
+                    var loreJson = JSON.parse(line);
+                    if(loreJson.translate){
+                        line = loreJson.translate;
+                    }
+                } catch(e) {
+                    // Not JSON, use as-is
+                }
+                
+                // Only keep non-empty, non-price lore
+                if (line && line.trim() !== "" && line.indexOf("Price:") === -1) {
+                    lore2Clean.push(line);
+                }
+            }
+        }
+        
+        var hasLore1 = lore1Clean.length > 0;
+        var hasLore2 = lore2Clean.length > 0;
+        
+        if(player) player.message("§7[Debug Match] Item1 hasLore: " + hasLore1 + ", Item2 hasLore: " + hasLore2);
+        
+        if (hasLore1 !== hasLore2) {
+            if(player) player.message("§c[Debug Match] One has lore, other doesn't");
+            return false;
+        }
+        
+        if (hasLore1 && hasLore2) {
+            if(player) {
+                player.message("§7[Debug Match] Item1 clean lore count: " + lore1Clean.length);
+                player.message("§7[Debug Match] Item2 clean lore count: " + lore2Clean.length);
+                if(lore1Clean.length > 0) player.message("§7[Debug Match] Item1 lore[0]: " + lore1Clean[0]);
+                if(lore2Clean.length > 0) player.message("§7[Debug Match] Item2 lore[0]: " + lore2Clean[0]);
+            }
+            
+            var lore1Str = JSON.stringify(lore1Clean);
+            var lore2Str = JSON.stringify(lore2Clean);
+            
+            if (lore1Str !== lore2Str) {
+                if(player) player.message("§c[Debug Match] Lore doesn't match");
+                return false;
+            }
+        }
+        
+        if(player) player.message("§a[Debug Match] ITEMS MATCH!");
+        return true;
+    } catch(e) {
+        if(player) player.message("§c[Debug Match] Exception: " + e);
+        return false;
+    }
+}
+
+function findPriceInGlobalMenu(item, world, api, player) {
+    if (!item || item.isEmpty()) {
+        if(player) player.message("§c[Debug] Item is empty");
+        return null;
+    }
+    
+    var worldData = world.getStoreddata();
+    if (!worldData.has("GlobalMenuData")) {
+        if(player) player.message("§c[Debug] No GlobalMenuData in world storage");
+        return null;
+    }
+    
+    var globalMenuData = {};
+    try {
+        globalMenuData = JSON.parse(worldData.get("GlobalMenuData"));
+    } catch(e) {
+        if(player) player.message("§c[Debug] Failed to parse GlobalMenuData: " + e);
+        return null;
+    }
+    
+    var menuCount = Object.keys(globalMenuData).length;
+    if (!globalMenuData || menuCount === 0) {
+        if(player) player.message("§c[Debug] GlobalMenuData is empty");
+        return null;
+    }
+    
+    if(player) player.message("§7[Debug] Checking against " + menuCount + " menu items");
+    
+    var checkCount = 0;
+    for (var key in globalMenuData) {
+        if (!globalMenuData.hasOwnProperty(key)) continue;
+        
+        var entry = globalMenuData[key];
+        if (!entry || !entry.item) continue;
+        
+        checkCount++;
+        if(player) player.message("§7[Debug] Checking menu item #" + checkCount + " (key: " + key + ")");
+        
+        try {
+            var menuItem = world.createItemFromNbt(api.stringToNbt(entry.item));
+            
+            if (itemsMatch(menuItem, item, player)) {
+                if(player) player.message("§a[Debug] Match found! Price: " + entry.price);
+                return entry.price;
+            }
+        } catch(e) {
+            if(player) player.message("§c[Debug] Error creating item: " + e);
+        }
+    }
+    
+    if(player) player.message("§c[Debug] No match found in menu");
+    return null;
+}
+
+function addPriceLoreToItem(item, price) {
+    if (!item || item.isEmpty()) return item;
+    if (!price) return item;
+    
+    var existingLore = item.getLore();
+    var loreArray = [];
+    
+    // Keep existing lore except price lines
+    for(var j = 0; j < existingLore.length; j++){
+        var line = existingLore[j];
+        if(line.indexOf("Price:") === -1){
+            loreArray.push(line);
+        }
+    }
+    
+    // Remove trailing empty lines
+    while(loreArray.length > 0 && loreArray[loreArray.length - 1] === ""){
+        loreArray.pop();
+    }
+    
+    // Add price with ¢ symbol (price is numeric)
+    loreArray.push("");
+    loreArray.push("§aPrice: §e" + price + "¢");
+    
+    item.setLore(loreArray);
+    return item;
+}
+
 function customGuiSlotClicked(event) {
     var clickedSlot = event.slot;
     var stack = event.stack;
     var player = event.player;
     var gui = event.gui;
+    var api = event.API;
     
-    if (viewMode === "pricing") {
-        var slotIndex = pricingSlots.indexOf(clickedSlot);
-        
-        if (slotIndex !== -1) {
-            clearPricingHighlight(gui);
-            pricingHighlightedSlot = clickedSlot;
-            var pos = pricingSlotPositions[slotIndex];
-            drawPricingHighlight(gui, pos.x, pos.y);
+    var index = mySlots.indexOf(clickedSlot);
+    
+    if (isAdminGui) {
+        if (index !== -1) {
+            clearAdminHighlight(gui);
+            highlightedAdminSlot = clickedSlot;
+            var pos = slotPositions[index];
+            drawAdminHighlight(gui, pos.x, pos.y);
             if (gui) gui.update();
             return;
         }
         
-        if (!pricingHighlightedSlot) return;
+        if (!highlightedAdminSlot) return;
         
         if (!stack || stack.isEmpty()) {
-            var currentStack = pricingHighlightedSlot.getStack();
+            var currentStack = highlightedAdminSlot.getStack();
             if (currentStack && !currentStack.isEmpty()) {
-                pricingHighlightedSlot.setStack(player.world.createItem("minecraft:air", 1));
+                highlightedAdminSlot.setStack(player.world.createItem("minecraft:air", 1));
                 if (gui) gui.update();
             }
             return;
@@ -516,117 +612,36 @@ function customGuiSlotClicked(event) {
         try {
             var itemCopy = player.world.createItemFromNbt(stack.getItemNbt());
             itemCopy.setStackSize(stack.getStackSize());
-            pricingHighlightedSlot.setStack(itemCopy);
+            
+            // Check if item exists in global menu and add price lore
+            var world = player.getWorld();
+            var price = findPriceInGlobalMenu(itemCopy, world, api, player); // Pass player for debug
+            
+            if (price !== null && price !== undefined) {
+                itemCopy = addPriceLoreToItem(itemCopy, price);
+                player.message("§aFound price in menu: §e" + price + "¢");
+            } else {
+                player.message("§7Item added (no price found in global menu)");
+            }
+            
+            highlightedAdminSlot.setStack(itemCopy);
             if (gui) gui.update();
-        } catch(e) {}
-        return;
-        
-    } else if (viewMode === "menu") {
-        var index = mySlots.indexOf(clickedSlot);
-        
-        if (isAdminGui) {
-            if (index !== -1) {
-                clearAdminHighlight(gui);
-                highlightedAdminSlot = clickedSlot;
-                var pos = slotPositions[index];
-                drawAdminHighlight(gui, pos.x, pos.y);
-                if (gui) gui.update();
-                return;
-            }
-            
-            if (!highlightedAdminSlot) return;
-            
-            if (!stack || stack.isEmpty()) {
-                var currentStack = highlightedAdminSlot.getStack();
-                if (currentStack && !currentStack.isEmpty()) {
-                    highlightedAdminSlot.setStack(player.world.createItem("minecraft:air", 1));
-                    if (gui) gui.update();
-                }
-                return;
-            }
-            
-            try {
-                var itemCopy = player.world.createItemFromNbt(stack.getItemNbt());
-                itemCopy.setStackSize(stack.getStackSize());
-                highlightedAdminSlot.setStack(itemCopy);
-                if (gui) gui.update();
-            } catch(e) {}
-            return;
+        } catch(e) {
+            player.message("§cError: " + e);
         }
-        
-        if (index === -1) return;
-        toggleHighlight(index, player);
+        return;
     }
+    
+    if (index === -1) return;
+    toggleHighlight(index, player);
 }
 
 function customGuiButton(event) {
     var player = event.player;
     var api = event.API;
     
-    if (event.buttonId === ID_PRICING_SETUP_BUTTON) {
-        if (viewMode === "menu" && isAdminGui) {
-            saveNpcMenuItems(lastNpc, player);
-            var gui = event.gui;
-            if (gui) {
-                var chairsField = gui.getComponent(ID_FIELD_CHAIRS);
-                if (chairsField) {
-                    var chairText = chairsField.getText();
-                    lastNpc.getStoreddata().put("ChairListText", chairText);
-                }
-            }
-            openPricingGui(player, api);
-        }
-        return;
-    }
-    
-    if (event.buttonId === ID_MENU_SETUP_BUTTON) {
-        if (viewMode === "pricing") {
-            savePricingPageItems();
-            openAdminMenuGui(player, api);
-        }
-        return;
-    }
-    
-    if (event.buttonId === ID_NEXT_PAGE_BUTTON) {
-        if (viewMode === "pricing") {
-            savePricingPageItems();
-            var totalPages = Object.keys(storedPricingItems).length;
-            if (currentPricingPage + 1 < totalPages) {
-                currentPricingPage++;
-                openPricingGui(player, api);
-            }
-        }
-        return;
-    }
-    
-    if (event.buttonId === ID_PREV_PAGE_BUTTON) {
-        if (viewMode === "pricing") {
-            if (currentPricingPage > 0) {
-                savePricingPageItems();
-                currentPricingPage--;
-                openPricingGui(player, api);
-            }
-        }
-        return;
-    }
-    
-    if (event.buttonId === ID_CREATE_PAGE_BUTTON) {
-        if (viewMode === "pricing") {
-            var totalPages = Object.keys(storedPricingItems).length;
-            if (totalPages < maxPricingPages) {
-                savePricingPageItems();
-                var newPage = totalPages;
-                storedPricingItems[newPage] = makeNullArray(pricingSlotPositions.length);
-                currentPricingPage = newPage;
-                openPricingGui(player, api);
-            }
-        }
-        return;
-    }
-    
     if (event.buttonId === ID_CLEAR_MENU_BUTTON) {
-        if (viewMode === "menu" && !isAdminGui) {
-            // Clear all selections and recreate GUI
+        if (!isAdminGui) {
             selectedSlots = [];
             player.getStoreddata().put("SelectedMenuSlots", JSON.stringify(selectedSlots));
             renderPlayerGui(player, api);
@@ -679,31 +694,6 @@ function customGuiButton(event) {
         lastNpc.getStoreddata().put("ManagerJobActive", "true");
         lastNpc.getStoreddata().put("JobStopped", "false");
         lastNpc.getStoreddata().put("CurrentCustomerCount", "0");
-        
-        var npcData = lastNpc.getStoreddata();
-        if(npcData.has("PricingItems")){
-            storedPricingItems = {};
-            
-            try {
-                var pricingJson = npcData.get("PricingItems");
-                storedPricingItems = JSON.parse(pricingJson);
-                var pageCount = Object.keys(storedPricingItems).length;
-                
-                npcData.put("PricingItems", pricingJson);
-                
-                var world = lastNpc.getWorld();
-                var allNearby = world.getNearbyEntities(lastNpc.getX(), lastNpc.getY(), lastNpc.getZ(), scanRange, 2);
-                for(var i = 0; i < allNearby.length; i++){
-                    var ent = allNearby[i];
-                    try {
-                        if(ent && ent.getName && ent.getName() === "customer"){
-                            var custData = ent.getStoreddata();
-                            custData.put("PricingData", pricingJson);
-                        }
-                    } catch(e) {}
-                }
-            } catch(e) {}
-        }
 
         resetChairRuntime(lastNpc);
         spawnCustomerCloneAtManager(lastNpc, api);
@@ -732,10 +722,7 @@ function customGuiButton(event) {
 }
 
 function customGuiClosed(event) {
-    if (viewMode === "pricing") {
-        savePricingPageItems();
-        guiRef = null;
-    } else if (viewMode === "menu" && isAdminGui) {
+    if (isAdminGui) {
         var gui = event.gui;
         var npcData = lastNpc.getStoreddata();
 
@@ -761,10 +748,6 @@ function customGuiClosed(event) {
             chairsList = parsed;
         }
         guiRef = null;
-    } else if (viewMode === "menu" && !isAdminGui) {
-        // Player menu - don't clear guiRef as it might be recreating
-        // Only clear if we're truly closing (not recreating)
-        // guiRef will be overwritten when new GUI is created
     }
 }
 
