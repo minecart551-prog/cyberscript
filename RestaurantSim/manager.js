@@ -189,9 +189,11 @@ function openAdminMenuGui(player, api) {
                 
                 // Check if item has price in global menu and add/update lore
                 var world = player.getWorld();
-                var price = findPriceInGlobalMenu(item, world, api, null); // null = no debug messages here
+                var price = findPriceInGlobalMenu(item, world, api);
                 if (price) {
                     item = addPriceLoreToItem(item, price);
+                    // Update the stored item with new price
+                    storedSlotItems[i] = item.getItemNbt().toJsonString();
                 }
                 
                 slot.setStack(item);
@@ -199,6 +201,9 @@ function openAdminMenuGui(player, api) {
         }
         mySlots.push(slot);
     }
+    
+    // Save updated items with refreshed prices
+    lastNpc.getStoreddata().put("MenuItems", JSON.stringify(storedSlotItems));
 
     guiRef.showPlayerInventory(3, 80, false);
     player.showCustomGui(guiRef);
@@ -226,11 +231,24 @@ function renderPlayerGui(player, api) {
         if (storedSlotItems[i]) {
             try {
                 var item = player.world.createItemFromNbt(api.stringToNbt(storedSlotItems[i]));
+                
+                // Check if item has price in global menu and add/update lore
+                var world = player.getWorld();
+                var price = findPriceInGlobalMenu(item, world, api);
+                if (price) {
+                    item = addPriceLoreToItem(item, price);
+                    // Update the stored item with new price
+                    storedSlotItems[i] = item.getItemNbt().toJsonString();
+                }
+                
                 slot.setStack(item);
             } catch(e) {}
         }
         mySlots.push(slot);
     }
+    
+    // Save updated items with refreshed prices
+    lastNpc.getStoreddata().put("MenuItems", JSON.stringify(storedSlotItems));
 
     selectedSlots.forEach(function(idx) {
         if (idx >= 0 && idx < mySlots.length) drawHighlight(idx);
@@ -364,9 +382,8 @@ function interact(event) {
     else openPlayerGui(player, api);
 }
 
-function itemsMatch(item1, item2, player) {
+function itemsMatch(item1, item2) {
     if (!item1 || !item2) {
-        if(player) player.message("§c[Debug Match] One item is null");
         return false;
     }
     
@@ -375,9 +392,7 @@ function itemsMatch(item1, item2, player) {
         var nbt2 = item2.getItemNbt();
         
         if (!nbt1 || !nbt2) {
-            var match = item1.getName() === item2.getName();
-            if(player) player.message("§7[Debug Match] No NBT, name match: " + match);
-            return match;
+            return item1.getName() === item2.getName();
         }
         
         var json1 = nbt1.toJsonString();
@@ -390,11 +405,8 @@ function itemsMatch(item1, item2, player) {
         var obj2 = JSON.parse(json2);
         
         if (obj1.id !== obj2.id) {
-            if(player) player.message("§c[Debug Match] Different IDs: " + obj1.id + " vs " + obj2.id);
             return false;
         }
-        
-        if(player) player.message("§a[Debug Match] Same ID: " + obj1.id);
         
         var tag1 = obj1.tag || {};
         var tag2 = obj2.tag || {};
@@ -405,11 +417,7 @@ function itemsMatch(item1, item2, player) {
         var name1 = display1.Name || null;
         var name2 = display2.Name || null;
         
-        if(player && name1) player.message("§7[Debug Match] Item1 name: " + name1);
-        if(player && name2) player.message("§7[Debug Match] Item2 name: " + name2);
-        
         if (name1 !== name2) {
-            if(player) player.message("§c[Debug Match] Different custom names");
             return false;
         }
         
@@ -465,47 +473,32 @@ function itemsMatch(item1, item2, player) {
         var hasLore1 = lore1Clean.length > 0;
         var hasLore2 = lore2Clean.length > 0;
         
-        if(player) player.message("§7[Debug Match] Item1 hasLore: " + hasLore1 + ", Item2 hasLore: " + hasLore2);
-        
         if (hasLore1 !== hasLore2) {
-            if(player) player.message("§c[Debug Match] One has lore, other doesn't");
             return false;
         }
         
         if (hasLore1 && hasLore2) {
-            if(player) {
-                player.message("§7[Debug Match] Item1 clean lore count: " + lore1Clean.length);
-                player.message("§7[Debug Match] Item2 clean lore count: " + lore2Clean.length);
-                if(lore1Clean.length > 0) player.message("§7[Debug Match] Item1 lore[0]: " + lore1Clean[0]);
-                if(lore2Clean.length > 0) player.message("§7[Debug Match] Item2 lore[0]: " + lore2Clean[0]);
-            }
-            
             var lore1Str = JSON.stringify(lore1Clean);
             var lore2Str = JSON.stringify(lore2Clean);
             
             if (lore1Str !== lore2Str) {
-                if(player) player.message("§c[Debug Match] Lore doesn't match");
                 return false;
             }
         }
         
-        if(player) player.message("§a[Debug Match] ITEMS MATCH!");
         return true;
     } catch(e) {
-        if(player) player.message("§c[Debug Match] Exception: " + e);
         return false;
     }
 }
 
-function findPriceInGlobalMenu(item, world, api, player) {
+function findPriceInGlobalMenu(item, world, api) {
     if (!item || item.isEmpty()) {
-        if(player) player.message("§c[Debug] Item is empty");
         return null;
     }
     
     var worldData = world.getStoreddata();
     if (!worldData.has("GlobalMenuData")) {
-        if(player) player.message("§c[Debug] No GlobalMenuData in world storage");
         return null;
     }
     
@@ -513,41 +506,28 @@ function findPriceInGlobalMenu(item, world, api, player) {
     try {
         globalMenuData = JSON.parse(worldData.get("GlobalMenuData"));
     } catch(e) {
-        if(player) player.message("§c[Debug] Failed to parse GlobalMenuData: " + e);
         return null;
     }
     
-    var menuCount = Object.keys(globalMenuData).length;
-    if (!globalMenuData || menuCount === 0) {
-        if(player) player.message("§c[Debug] GlobalMenuData is empty");
+    if (!globalMenuData || Object.keys(globalMenuData).length === 0) {
         return null;
     }
     
-    if(player) player.message("§7[Debug] Checking against " + menuCount + " menu items");
-    
-    var checkCount = 0;
     for (var key in globalMenuData) {
         if (!globalMenuData.hasOwnProperty(key)) continue;
         
         var entry = globalMenuData[key];
         if (!entry || !entry.item) continue;
         
-        checkCount++;
-        if(player) player.message("§7[Debug] Checking menu item #" + checkCount + " (key: " + key + ")");
-        
         try {
             var menuItem = world.createItemFromNbt(api.stringToNbt(entry.item));
             
-            if (itemsMatch(menuItem, item, player)) {
-                if(player) player.message("§a[Debug] Match found! Price: " + entry.price);
+            if (itemsMatch(menuItem, item)) {
                 return entry.price;
             }
-        } catch(e) {
-            if(player) player.message("§c[Debug] Error creating item: " + e);
-        }
+        } catch(e) {}
     }
     
-    if(player) player.message("§c[Debug] No match found in menu");
     return null;
 }
 
@@ -615,7 +595,7 @@ function customGuiSlotClicked(event) {
             
             // Check if item exists in global menu and add price lore
             var world = player.getWorld();
-            var price = findPriceInGlobalMenu(itemCopy, world, api, player); // Pass player for debug
+            var price = findPriceInGlobalMenu(itemCopy, world, api);
             
             if (price !== null && price !== undefined) {
                 itemCopy = addPriceLoreToItem(itemCopy, price);
