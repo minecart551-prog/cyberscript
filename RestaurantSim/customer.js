@@ -586,17 +586,12 @@ function interact(event){
                     displayText += " §7[" + group.lore.join(", ") + "]";
                 }
                 
-                // Add total price for this group
-                if(group.totalPrice > 0){
-                    displayText += " §e(" + group.totalPrice + "¢)";
-                }
-                
                 orderParts.push(displayText);
             }
         }
         
         if(orderParts.length > 0){
-            var orderMessage = orderParts.join("§f, ");
+            var orderMessage = orderParts.join(" ");
             npc.say(orderMessage);
         }
         
