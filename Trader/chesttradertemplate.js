@@ -343,7 +343,7 @@ function customGuiButton(event){
         }
         return;
     }
-    // Set Rows button
+    // Set Rows button - FIXED VERSION
     if(event.buttonId === ID_SET_ROWS_BUTTON){
         if(!adminMode) return;
         var rowsField = event.gui.getComponent(ID_ROWS_FIELD);
@@ -358,20 +358,54 @@ function customGuiButton(event){
             player.message("§cInvalid! Enter a number between 1 and 100.");
             return;
         }
-        // Save current items first
+        
+        // CRITICAL FIX: Save current viewport items FIRST
         savePageItems();
-        // Update total rows
-        totalRows = newRows;
-        // Save row config
+        
+        // Load ALL existing items from storage to preserve them
         if(lastNpc) {
             var npcData = lastNpc.getStoreddata();
+            var allItems = {};
+            if(npcData.has("ShopItems")){
+                try {
+                    allItems = JSON.parse(npcData.get("ShopItems"));
+                } catch(e) {}
+            }
+            
+            // Get old array for current page
+            var oldArray = allItems[currentPage] || [];
+            var oldTotalSlots = totalRows * numCols;
+            var newTotalSlots = newRows * numCols;
+            
+            // Create new array with new size
+            var newArray = makeNullArray(newTotalSlots);
+            
+            // Copy over existing items (up to the smaller of old/new size)
+            var copyLimit = Math.min(oldArray.length, newTotalSlots);
+            for(var i = 0; i < copyLimit; i++){
+                newArray[i] = oldArray[i];
+            }
+            
+            // Update storage with resized array
+            allItems[currentPage] = newArray;
+            storedSlotItems = allItems; // Update in-memory copy
+            
+            // Save back to NPC
+            npcData.put("ShopItems", JSON.stringify(allItems));
+            
+            // Update total rows
+            totalRows = newRows;
+            
+            // Save row config
             saveTabRowConfig(npcData, totalRows);
         }
+        
         // Reset viewport if out of bounds
         var maxViewportRow = Math.max(0, totalRows - viewportRows);
         if(viewportRow > maxViewportRow) {
             viewportRow = maxViewportRow;
         }
+        
         // Refresh GUI
         player.message("§aSet total rows to §e" + totalRows + " §afor this tab!");
         interact({player: player, API: api, npc: lastNpc});
