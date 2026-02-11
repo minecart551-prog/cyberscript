@@ -1024,6 +1024,1446 @@
                 }
               ]
             }
+          },
+          {
+            name: "ElviceQ1",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,55,988],
+                  min: [I;2614,52,978],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,55,980],
+                  min: [I;2613,52,978],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceQ2",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,55,1011],
+                  min: [I;2614,52,1000],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,55,1011],
+                  min: [I;2613,52,1008],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceQ3",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,55,1036],
+                  min: [I;2614,52,1023],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,55,1026],
+                  min: [I;2613,52,1023],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceQ4",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,55,1061],
+                  min: [I;2613,52,1058],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2619,55,1057],
+                  min: [I;2614,52,1048],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceQ5",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,55,1084],
+                  min: [I;2614,52,1073],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,55,1076],
+                  min: [I;2613,52,1073],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceQ6",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,55,1096],
+                  min: [I;2614,52,1107],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,55,1106],
+                  min: [I;2613,52,1104],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceQ7",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,55,1107],
+                  min: [I;2577,52,1096],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,55,1104],
+                  min: [I;2583,52,1106],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceQ8",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,55,1084],
+                  min: [I;2577,52,1073],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,55,1076],
+                  min: [I;2583,52,1073],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceQ9",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,55,1061],
+                  min: [I;2577,52,1048],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,55,1061],
+                  min: [I;2583,52,1058],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceQ10",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,55,1036],
+                  min: [I;2577,52,1023],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,55,1026],
+                  min: [I;2583,52,1023],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceQ11",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,55,1011],
+                  min: [I;2577,52,1000],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,55,1011],
+                  min: [I;2583,52,1008],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceQ12",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2583,55,980],
+                  min: [I;2577,52,978],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2582,55,988],
+                  min: [I;2577,52,981],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceR1",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,60,988],
+                  min: [I;2614,57,978],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,60,980],
+                  min: [I;2613,57,978],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceR2",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,60,1011],
+                  min: [I;2614,57,1000],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,60,1011],
+                  min: [I;2613,57,1008],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceR3",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,60,1036],
+                  min: [I;2614,57,1023],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,60,1026],
+                  min: [I;2613,57,1023],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceR4",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,60,1061],
+                  min: [I;2613,57,1058],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2619,60,1057],
+                  min: [I;2614,57,1048],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceR5",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,60,1084],
+                  min: [I;2614,57,1073],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,60,1076],
+                  min: [I;2613,57,1073],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceR6",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,60,1096],
+                  min: [I;2614,57,1107],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,60,1106],
+                  min: [I;2613,57,1104],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceR7",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,60,1107],
+                  min: [I;2577,57,1096],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,60,1104],
+                  min: [I;2583,57,1106],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceR8",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,60,1084],
+                  min: [I;2577,57,1073],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,60,1076],
+                  min: [I;2583,57,1073],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceR9",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,60,1061],
+                  min: [I;2577,57,1048],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,60,1061],
+                  min: [I;2583,57,1058],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceR10",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,60,1036],
+                  min: [I;2577,57,1023],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,60,1026],
+                  min: [I;2583,57,1023],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceR11",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,60,1011],
+                  min: [I;2577,57,1000],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,60,1011],
+                  min: [I;2583,57,1008],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceR12",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2583,60,980],
+                  min: [I;2577,57,978],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2582,60,988],
+                  min: [I;2577,57,981],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceS1",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,65,988],
+                  min: [I;2614,62,978],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,65,980],
+                  min: [I;2613,62,978],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceS2",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,65,1011],
+                  min: [I;2614,62,1000],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,65,1011],
+                  min: [I;2613,62,1008],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceS3",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,65,1036],
+                  min: [I;2614,62,1023],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,65,1026],
+                  min: [I;2613,62,1023],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceS4",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,65,1061],
+                  min: [I;2613,62,1058],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2619,65,1057],
+                  min: [I;2614,62,1048],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceS5",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,65,1084],
+                  min: [I;2614,62,1073],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,65,1076],
+                  min: [I;2613,62,1073],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceS6",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,65,1096],
+                  min: [I;2614,62,1107],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,65,1106],
+                  min: [I;2613,62,1104],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceS7",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,65,1107],
+                  min: [I;2577,62,1096],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,65,1104],
+                  min: [I;2583,62,1106],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceS8",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,65,1084],
+                  min: [I;2577,62,1073],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,65,1076],
+                  min: [I;2583,62,1073],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceS9",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,65,1061],
+                  min: [I;2577,62,1048],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,65,1061],
+                  min: [I;2583,62,1058],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceS10",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,65,1036],
+                  min: [I;2577,62,1023],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,65,1026],
+                  min: [I;2583,62,1023],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceS11",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,65,1011],
+                  min: [I;2577,62,1000],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,65,1011],
+                  min: [I;2583,62,1008],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceS12",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2583,65,980],
+                  min: [I;2577,62,978],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2582,65,988],
+                  min: [I;2577,62,981],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceT1",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,70,988],
+                  min: [I;2614,67,978],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,70,980],
+                  min: [I;2613,67,978],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceT2",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,70,1011],
+                  min: [I;2614,67,1000],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,70,1011],
+                  min: [I;2613,67,1008],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceT3",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,70,1036],
+                  min: [I;2614,67,1023],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,70,1026],
+                  min: [I;2613,67,1023],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceT4",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,70,1061],
+                  min: [I;2613,67,1058],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2619,70,1057],
+                  min: [I;2614,67,1048],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceT5",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,70,1084],
+                  min: [I;2614,67,1073],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,70,1076],
+                  min: [I;2613,67,1073],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceT6",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,70,1096],
+                  min: [I;2614,67,1107],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,70,1106],
+                  min: [I;2613,67,1104],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceT7",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,70,1107],
+                  min: [I;2577,67,1096],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,70,1104],
+                  min: [I;2583,67,1106],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceT8",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,70,1084],
+                  min: [I;2577,67,1073],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,70,1076],
+                  min: [I;2583,67,1073],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceT9",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,70,1061],
+                  min: [I;2577,67,1048],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,70,1061],
+                  min: [I;2583,67,1058],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceT10",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,70,1036],
+                  min: [I;2577,67,1023],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,70,1026],
+                  min: [I;2583,67,1023],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceT11",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,70,1011],
+                  min: [I;2577,67,1000],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,70,1011],
+                  min: [I;2583,67,1008],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceT12",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2583,70,980],
+                  min: [I;2577,67,978],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2582,70,988],
+                  min: [I;2577,67,981],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceU1",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,75,988],
+                  min: [I;2614,72,978],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,75,980],
+                  min: [I;2613,72,978],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceU2",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,75,1011],
+                  min: [I;2614,72,1000],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,75,1011],
+                  min: [I;2613,72,1008],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceU3",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,75,1036],
+                  min: [I;2614,72,1023],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,75,1026],
+                  min: [I;2613,72,1023],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceU4",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,75,1061],
+                  min: [I;2613,72,1058],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2619,75,1057],
+                  min: [I;2614,72,1048],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceU5",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,75,1084],
+                  min: [I;2614,72,1073],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,75,1076],
+                  min: [I;2613,72,1073],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceU6",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,75,1096],
+                  min: [I;2614,72,1107],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,75,1106],
+                  min: [I;2613,72,1104],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceU7",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,75,1107],
+                  min: [I;2577,72,1096],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,75,1104],
+                  min: [I;2583,72,1106],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceU8",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,75,1084],
+                  min: [I;2577,72,1073],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,75,1076],
+                  min: [I;2583,72,1073],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceU9",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,75,1061],
+                  min: [I;2577,72,1048],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,75,1061],
+                  min: [I;2583,72,1058],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceU10",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,75,1036],
+                  min: [I;2577,72,1023],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,75,1026],
+                  min: [I;2583,72,1023],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceU11",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,75,1011],
+                  min: [I;2577,72,1000],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,75,1011],
+                  min: [I;2583,72,1008],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceU12",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2583,75,980],
+                  min: [I;2577,72,978],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2582,75,988],
+                  min: [I;2577,72,981],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceV1",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,80,988],
+                  min: [I;2614,77,978],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,80,980],
+                  min: [I;2613,77,978],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceV2",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,80,1011],
+                  min: [I;2614,77,1000],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,80,1011],
+                  min: [I;2613,77,1008],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceV3",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,80,1036],
+                  min: [I;2614,77,1023],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,80,1026],
+                  min: [I;2613,77,1023],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceV4",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,80,1061],
+                  min: [I;2613,77,1058],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2619,80,1057],
+                  min: [I;2614,77,1048],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceV5",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,80,1084],
+                  min: [I;2614,77,1073],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,80,1076],
+                  min: [I;2613,77,1073],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceV6",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2619,80,1096],
+                  min: [I;2614,77,1107],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2613,80,1106],
+                  min: [I;2613,77,1104],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceV7",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,80,1107],
+                  min: [I;2577,77,1096],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,80,1104],
+                  min: [I;2583,77,1106],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceV8",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,80,1084],
+                  min: [I;2577,77,1073],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,80,1076],
+                  min: [I;2583,77,1073],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceV9",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,80,1061],
+                  min: [I;2577,77,1048],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,80,1061],
+                  min: [I;2583,77,1058],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceV10",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,80,1036],
+                  min: [I;2577,77,1023],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,80,1026],
+                  min: [I;2583,77,1023],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceV11",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2582,80,1011],
+                  min: [I;2577,77,1000],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2583,80,1011],
+                  min: [I;2583,77,1008],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
+          },
+          {
+            name: "ElviceV12",
+            shape: {
+              type: "union",
+              value: [
+                {
+                  type: "box",
+                  max: [I;2583,80,980],
+                  min: [I;2577,77,978],
+                  dimension: "minecraft:overworld"
+                },
+                {
+                  type: "box",
+                  max: [I;2582,80,988],
+                  min: [I;2577,77,981],
+                  dimension: "minecraft:overworld"
+                }
+              ]
+            }
           }
         ],
         key: "ElviceApartments",
