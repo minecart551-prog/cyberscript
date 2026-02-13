@@ -191,18 +191,6 @@ function getSizeCategory(fishSize, typicalLow, typicalHigh, recordHigh) {
     }
 }
 
-// Get category display name with color
-function getCategoryDisplay(category) {
-    var displays = {
-        "underground": "§8Underground§r",
-        "saltwater": "§9Saltwater§r",
-        "freshwater": "§bFreshwater§r",
-        "tropical": "§eTropical§r",
-        "nether": "§cNether§r"
-    };
-    return displays[category] || category;
-}
-
 // ========== MAIN INTERACTION ==========
 function interact(event) {
     var player = event.player;
@@ -264,7 +252,6 @@ function interact(event) {
 function role(event) {
     var npc = event.npc;
     npc.say("§eI buy all kinds of fish!");
-    npc.say("§8Underground§r, §9Saltwater§r, and more!");
     npc.say("§aHold a fish in your hand and right-click me to sell it.");
     npc.say("§7Larger fish are worth more coins!");
 }
