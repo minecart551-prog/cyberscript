@@ -1,6 +1,6 @@
 // ========== FISH SELLING NPC SCRIPT ==========
 // Player right-clicks NPC while holding a fish to sell it
-// Payment based on: Fish type (value multiplier) + Fish size
+// Payment based on: Fish type (value multiplier) + Fish size + Category bonus
 
 // ========== PRICING CONFIGURATION ==========
 var BASE_COIN_VALUE = 3;    // Base price for 1.5x multiplier fish at typical low size
@@ -8,8 +8,18 @@ var BASE_MULTIPLIER = 1.5;  // Base multiplier (Cave Crawler)
 var CURRENCY_ITEM = "coins:stone_coin"; // Stone coin currency
 var CURRENCY_FALLBACK = "minecraft:gold_nugget";    // Fallback if currency doesn't exist
 
-// Fish data: [fishName, valueMultiplier, typicalLowCm, typicalHighCm, recordHighCm]
-var FISH_DATABASE = {
+// ========== CATEGORY VALUE MULTIPLIERS ==========
+// Adjust these to make certain categories more/less valuable
+var CATEGORY_MULTIPLIERS = {
+    "underground": 1.0,     // Base category (no bonus)
+    "saltwater": 1.3,       // 30% more valuable than underground
+    "freshwater": 1.1,      // 10% more valuable (for future use)
+    "tropical": 1.5,        // 50% more valuable (for future use)
+    "nether": 2.0           // 2x more valuable (for future use)
+};
+
+// ========== UNDERGROUND FISH DATABASE ==========
+var UNDERGROUND_FISH = {
     // Common tier
     "tide:cave_crawler": [1.5, 45, 60, 100, "Cave Crawler"],
     "tide:deep_grouper": [1.8, 55, 75, 115, "Deep Grouper"],
@@ -40,6 +50,64 @@ var FISH_DATABASE = {
     "tide:devils_hole_pupfish": [10.0, 1.4, 2.6, 4.3, "Devil's Hole Pupfish"]
 };
 
+// ========== SALTWATER FISH DATABASE ==========
+var SALTWATER_FISH = {
+    // Common tier
+    "tide:anchovy": [1.5, 6, 12, 20, "Anchovy"],
+    "tide:flounder": [1.8, 40, 55, 75, "Flounder"],
+    "tide:mackerel": [1.5, 30, 45, 65, "Mackerel"],
+    "tide:snook": [2.0, 38, 68, 125, "Snook"],
+    "tide:tuna": [2.5, 90, 150, 300, "Tuna"],
+    "tide:mahi_mahi": [2.0, 60, 100, 210, "Mahi Mahi"],
+    "tide:red_snapper": [1.8, 35, 60, 100, "Red Snapper"],
+    
+    // Uncommon tier
+    "tide:angelfish": [3.0, 10, 13, 20, "Angelfish"],
+    
+    // Rare tier
+    "tide:spore_stalker": [5.0, 35, 55, 90, "Spore Stalker"],
+    "tide:swordfish": [5.5, 180, 290, 455, "Swordfish"],
+    "tide:opah": [4.5, 80, 130, 270, "Opah"],
+    "tide:oarfish": [5.0, 300, 600, 1100, "Oarfish"],
+    "tide:moonfish": [4.5, 25, 45, 100, "Moonfish"],
+    
+    // Very Rare tier
+    "tide:aquathorn": [7.0, 32, 45, 70, "Aquathorn"],
+    "tide:great_white_shark": [7.5, 370, 490, 610, "Great White Shark"],
+    "tide:saturn_cuttlefish": [6.5, 90, 120, 180, "Saturn Cuttlefish"],
+    "tide:sun_emblem": [6.5, 50, 60, 85, "Sun Emblem"],
+    "tide:uranias_pisces": [7.0, 180, 220, 350, "Urania's Pisces"],
+    "tide:rainbow_aqualotl": [6.5, 15, 22, 40, "Rainbow Aqualotl"],
+    "tide:nautilus": [6.0, 12, 20, 30, "Nautilus"],
+    
+    // Legendary tier
+    "tide:coelacanth": [10.0, 140, 190, 270, "Coelacanth"],
+    "tide:shooting_starfish": [9.5, 70, 85, 120, "Shooting Starfish"]
+};
+
+// ========== MASTER FISH DATABASE WITH CATEGORIES ==========
+// Combines all fish databases with their category
+function getFishData(fishId) {
+    if (UNDERGROUND_FISH[fishId]) {
+        return {
+            data: UNDERGROUND_FISH[fishId],
+            category: "underground"
+        };
+    }
+    if (SALTWATER_FISH[fishId]) {
+        return {
+            data: SALTWATER_FISH[fishId],
+            category: "saltwater"
+        };
+    }
+    // Add more categories here as needed:
+    // if (FRESHWATER_FISH[fishId]) {
+    //     return { data: FRESHWATER_FISH[fishId], category: "freshwater" };
+    // }
+    
+    return null;
+}
+
 // ========== HELPER FUNCTIONS ==========
 
 // Get fish size from NBT - Parse the JSON string directly
@@ -49,7 +117,6 @@ function getFishSize(itemStack) {
         var nbtString = nbt.toJsonString();
         
         // Parse the JSON string to extract FishLength
-        // Look for "FishLength": followed by a number
         var fishLengthMatch = nbtString.match(/"FishLength":\s*([0-9.]+)d?/);
         
         if (fishLengthMatch && fishLengthMatch[1]) {
@@ -89,17 +156,24 @@ function formatSize(size) {
     return size.toFixed(1) + "cm";
 }
 
-// Calculate total price
-function calculatePrice(fishData, fishSize) {
+// Calculate total price with category multiplier
+function calculatePrice(fishData, fishSize, category) {
     var valueMultiplier = fishData[0];
     var typicalLow = fishData[1];
     var typicalHigh = fishData[2];
     var recordHigh = fishData[3];
     
+    // Base price from fish type
     var basePrice = (valueMultiplier / BASE_MULTIPLIER) * BASE_COIN_VALUE;
+    
+    // Size multiplier
     var sizeMultiplier = getSizeMultiplier(fishSize, typicalLow, typicalHigh, recordHigh);
     
-    return Math.round(basePrice * sizeMultiplier);
+    // Category multiplier
+    var categoryMultiplier = CATEGORY_MULTIPLIERS[category] || 1.0;
+    
+    // Final price = base × size × category
+    return Math.round(basePrice * sizeMultiplier * categoryMultiplier);
 }
 
 // Get size category for message
@@ -117,6 +191,18 @@ function getSizeCategory(fishSize, typicalLow, typicalHigh, recordHigh) {
     }
 }
 
+// Get category display name with color
+function getCategoryDisplay(category) {
+    var displays = {
+        "underground": "§8Underground§r",
+        "saltwater": "§9Saltwater§r",
+        "freshwater": "§bFreshwater§r",
+        "tropical": "§eTropical§r",
+        "nether": "§cNether§r"
+    };
+    return displays[category] || category;
+}
+
 // ========== MAIN INTERACTION ==========
 function interact(event) {
     var player = event.player;
@@ -132,18 +218,22 @@ function interact(event) {
     
     var itemId = heldItem.getName();
     
-    if (!FISH_DATABASE[itemId]) {
+    // Get fish data with category
+    var fishInfo = getFishData(itemId);
+    
+    if (!fishInfo) {
         npc.say("§cI don't buy " + heldItem.getDisplayName() + "!");
         return;
     }
     
-    var fishData = FISH_DATABASE[itemId];
+    var fishData = fishInfo.data;
+    var category = fishInfo.category;
     var fishName = fishData[4];
     
     // Get fish size
     var fishSize = getFishSize(heldItem);
     
-    var price = calculatePrice(fishData, fishSize);
+    var price = calculatePrice(fishData, fishSize, category);
     var sizeCategory = getSizeCategory(fishSize, fishData[1], fishData[2], fishData[3]);
     var sizeText = formatSize(fishSize);
     
@@ -173,7 +263,8 @@ function interact(event) {
 
 function role(event) {
     var npc = event.npc;
-    npc.say("§eI buy all kinds of fish from the underground!");
+    npc.say("§eI buy all kinds of fish!");
+    npc.say("§8Underground§r, §9Saltwater§r, and more!");
     npc.say("§aHold a fish in your hand and right-click me to sell it.");
     npc.say("§7Larger fish are worth more coins!");
 }
