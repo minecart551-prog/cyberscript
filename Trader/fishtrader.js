@@ -12,8 +12,8 @@ var CURRENCY_FALLBACK = "minecraft:gold_nugget";    // Fallback if currency does
 // Adjust these to make certain categories more/less valuable
 var CATEGORY_MULTIPLIERS = {
     "underground": 1.0,     // Base category (no bonus)
-    "cold_ocean": 1.3,       // 30% more valuable than underground
-    "cold_ocean_rare": 1.1,      // 10% more valuable (for future use)
+    "cold_ocean": 1.2,       // 30% more valuable than underground
+    "cold_ocean_rare": 1.3,      // 10% more valuable (for future use)
 
 };
 
