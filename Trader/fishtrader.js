@@ -12,13 +12,12 @@ var CURRENCY_FALLBACK = "minecraft:gold_nugget";    // Fallback if currency does
 // Adjust these to make certain categories more/less valuable
 var CATEGORY_MULTIPLIERS = {
     "underground": 1.0,     // Base category (no bonus)
-    "saltwater": 1.3,       // 30% more valuable than underground
-    "freshwater": 1.1,      // 10% more valuable (for future use)
-    "tropical": 1.5,        // 50% more valuable (for future use)
-    "nether": 2.0           // 2x more valuable (for future use)
+    "cold_ocean": 1.3,       // 30% more valuable than underground
+    "cold_ocean_rare": 1.1,      // 10% more valuable (for future use)
+
 };
 
-// ========== UNDERGROUND FISH DATABASE ==========
+// ========== UNDERGROUND FISH DATABASE ========== BIOME:FOREST
 var UNDERGROUND_FISH = {
     // Common tier
     "tide:cave_crawler": [1.5, 45, 60, 100, "Cave Crawler"],
@@ -50,8 +49,8 @@ var UNDERGROUND_FISH = {
     "tide:devils_hole_pupfish": [10.0, 1.4, 2.6, 4.3, "Devil's Hole Pupfish"]
 };
 
-// ========== SALTWATER FISH DATABASE ==========
-var SALTWATER_FISH = {
+// ========== COLD OCEAN FISH DATABASE ========== BIOME: COLD OCEAN
+var COLD_OCEAN_FISH = {
     // Common tier
     "tide:anchovy": [1.5, 6, 12, 20, "Anchovy"],
     "tide:flounder": [1.8, 40, 55, 75, "Flounder"],
@@ -71,6 +70,12 @@ var SALTWATER_FISH = {
     "tide:oarfish": [5.0, 300, 600, 1100, "Oarfish"],
     "tide:moonfish": [4.5, 25, 45, 100, "Moonfish"],
     
+};
+
+
+// ========== COLD OCEAN RARE FISH DATABASE ========== BIOME: 
+var COLD_OCEAN_RARE_FISH = {
+    
     // Very Rare tier
     "tide:aquathorn": [7.0, 32, 45, 70, "Aquathorn"],
     "tide:great_white_shark": [7.5, 370, 490, 610, "Great White Shark"],
@@ -85,6 +90,8 @@ var SALTWATER_FISH = {
     "tide:shooting_starfish": [9.5, 70, 85, 120, "Shooting Starfish"]
 };
 
+
+
 // ========== MASTER FISH DATABASE WITH CATEGORIES ==========
 // Combines all fish databases with their category
 function getFishData(fishId) {
@@ -94,16 +101,19 @@ function getFishData(fishId) {
             category: "underground"
         };
     }
-    if (SALTWATER_FISH[fishId]) {
+    if (COLD_OCEAN_FISH[fishId]) {
         return {
-            data: SALTWATER_FISH[fishId],
-            category: "saltwater"
+            data: COLD_OCEAN_FISH[fishId],
+            category: "cold_ocean"
         };
     }
-    // Add more categories here as needed:
-    // if (FRESHWATER_FISH[fishId]) {
-    //     return { data: FRESHWATER_FISH[fishId], category: "freshwater" };
-    // }
+    if (COLD_OCEAN_RARE_FISH[fishId]) {
+        return {
+            data: COLD_OCEAN_FISH_RARE[fishId],
+            category: "cold_ocean_rare"
+        };
+    }    
+    
     
     return null;
 }
