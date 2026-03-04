@@ -61,7 +61,7 @@ var SYMBOL_WEIGHTS = [1, 3, 4, 6, 7, 9, 10];
 
 // ── Payout table (multiplier x bet) ─────────────────────────
 //   Keys are sorted symbol indices joined by commas.
-//   Any two-of-a-kind not listed below -> 1.5x (handled in code).
+//   Any two-of-a-kind not listed below -> 2x (handled in code).
 var PAYOUTS = {
     "0,0,0": 75,   // 3x Diamond (still rare, still hype)
     "1,1,1": 30,   // 3x Gold
@@ -89,7 +89,7 @@ var BET_OPTIONS = [10, 50, 200];
 //   Reel 0 locks first, reel 1 after +STAGGER, reel 2 after +2×STAGGER.
 
 var PHASE_FAST_INTERVAL   = 1;   // flip every tick  (blazing)
-var PHASE_FAST_DURATION   = 4;     // ticks in fast phase
+var PHASE_FAST_DURATION   = 4;   // ticks in fast phase
 
 var PHASE_MEDIUM_INTERVAL = 3;   // flip every 3 ticks
 var PHASE_MEDIUM_DURATION = 4;   // ticks in medium phase
@@ -266,7 +266,7 @@ function customGuiButton(event) {
     ];
 
     // All reels start and spin fast together.
-    // Stagger extends how long each reel stays in the fast phase,
+    // Stagger extends how long each reel stays in the medium phase,
     // so reel 0 slows down and locks first, reel 2 locks last.
     for (var r = 0; r < 3; r++) {
         reelLocked[r]     = false;
@@ -279,7 +279,8 @@ function customGuiButton(event) {
     updateCoinsLabel(player);
     if (guiRef) guiRef.update();
 
-    lastBlock  = lastBlock || event.block;
+    // FIX: prefer event.block, fall back to lastBlock
+    lastBlock  = event.block || lastBlock;
     lastPlayer = player;
     lastApi    = api;
     lastBlock.timers.forceStart(1, 1, true);
@@ -289,8 +290,13 @@ function customGuiButton(event) {
 function timer(event) {
     if (event.id !== 1) return;
 
-    var block = event.block;
-    if (!spinning) { block.timers.stop(1); return; }
+    // FIX: use lastBlock instead of event.block (timer events don't carry a block ref)
+    if (!spinning || !lastBlock) {
+        if (lastBlock) lastBlock.timers.stop(1);
+        return;
+    }
+
+    var block = lastBlock;
 
     spinTick++;
 
@@ -366,7 +372,7 @@ function resolveResult() {
                    : "§b§lCOMBO WIN! §e" + multiplier + "×";
     } else if (s[0] === s[1] || s[1] === s[2] || s[0] === s[2]) {
         multiplier = 2;
-        resultMsg  = "§a§lPAIR! §e2 × win";
+        resultMsg  = "§a§lPAIR! §e2× win";
     } else {
         resultMsg  = "§c§lNo match. Better luck!";
     }
